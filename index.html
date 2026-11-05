@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>幻覺博物館 - 聖誕尋影任務</title>
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .bg-xmas { background: linear-gradient(180deg, #0d3b24 0%, #061c11 100%); }
+    .card-glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
+    @keyframes pulse-gold {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 15px rgba(251, 191, 36, 0.6); }
+      50% { transform: scale(1.02); box-shadow: 0 0 30px rgba(251, 191, 36, 0.9); }
+    }
+    .prize-glow { animation: pulse-gold 2.5s infinite; }
+  </style>
+</head>
+<body class="bg-xmas min-h-screen text-slate-800 pb-16">
+
+  <!-- 載入中遮罩 -->
+  <div id="loading-mask" class="fixed inset-0 bg-slate-900/90 flex flex-col items-center justify-center z-50 text-white">
+    <div class="animate-spin rounded-full h-12 w-12 border-4 border-amber-400 border-t-transparent mb-4"></div>
+    <div class="text-sm font-bold tracking-wider">正在連線 LINE 帳號...</div>
+  </div>
+
+  <header class="pt-6 pb-4 px-4 text-center text-white">
+    <div class="inline-block bg-red-600 text-white text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider mb-2">
+      2026 聖誕限定活動
+    </div>
+    <h1 class="text-2xl font-black tracking-wide text-amber-300">幻覺博物館｜聖誕尋影任務</h1>
+    <p class="text-xs text-emerald-100 mt-1">尋找指定場景，模仿照片角度拍照通關！</p>
+    <div id="user-info" class="mt-2 text-xs font-bold text-amber-200">連線中...</div>
+  </header>
+
+  <main class="max-w-md mx-auto px-4 space-y-4">
+    <!-- 任務 1 -->
+    <div class="card-glass rounded-2xl p-4 shadow-xl border border-white/20">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="font-bold text-base flex items-center gap-2">
+          <span class="w-6 h-6 rounded-full bg-red-600 text-white text-xs flex items-center justify-center font-black">1</span>
+          任務一：張開五指的手影
+        </h2>
+        <span id="badge-1" class="text-xs px-2.5 py-1 rounded-full bg-gray-200 text-gray-600 font-bold">未完成</span>
+      </div>
+      <div class="relative rounded-xl overflow-hidden bg-gray-100 aspect-video mb-2 flex items-center justify-center border">
+        <img id="img-official-1" src="" alt="示範照 1" class="w-full h-full object-cover">
+        <span class="absolute bottom-1 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded">示範手勢</span>
+      </div>
+      <input type="file" id="file-1" accept="image/*" capture="environment" class="hidden" onchange="handlePhotoUpload(1, event)">
+      <button id="btn-1" onclick="document.getElementById('file-1').click()" class="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm transition">
+        📸 模仿此手勢拍照驗證
+      </button>
+      <div id="result-1" class="text-xs mt-2 font-medium hidden"></div>
+    </div>
+
+    <!-- 任務 2 -->
+    <div class="card-glass rounded-2xl p-4 shadow-xl border border-white/20">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="font-bold text-base flex items-center gap-2">
+          <span class="w-6 h-6 rounded-full bg-red-600 text-white text-xs flex items-center justify-center font-black">2</span>
+          任務二：剪刀手（YA）
+        </h2>
+        <span id="badge-2" class="text-xs px-2.5 py-1 rounded-full bg-gray-200 text-gray-600 font-bold">未完成</span>
+      </div>
+      <div class="relative rounded-xl overflow-hidden bg-gray-100 aspect-video mb-2 flex items-center justify-center border">
+        <img id="img-official-2" src="" alt="示範照 2" class="w-full h-full object-cover">
+        <span class="absolute bottom-1 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded">示範手勢</span>
+      </div>
+      <input type="file" id="file-2" accept="image/*" capture="environment" class="hidden" onchange="handlePhotoUpload(2, event)">
+      <button id="btn-2" onclick="document.getElementById('file-2').click()" class="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm transition">
+        📸 模仿此手勢拍照驗證
+      </button>
+      <div id="result-2" class="text-xs mt-2 font-medium hidden"></div>
+    </div>
+
+    <!-- 任務 3 -->
+    <div class="card-glass rounded-2xl p-4 shadow-xl border border-white/20">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="font-bold text-base flex items-center gap-2">
+          <span class="w-6 h-6 rounded-full bg-red-600 text-white text-xs flex items-center justify-center font-black">3</span>
+          任務三：握拳手影
+        </h2>
+        <span id="badge-3" class="text-xs px-2.5 py-1 rounded-full bg-gray-200 text-gray-600 font-bold">未完成</span>
+      </div>
+      <div class="relative rounded-xl overflow-hidden bg-gray-100 aspect-video mb-2 flex items-center justify-center border">
+        <img id="img-official-3" src="" alt="示範照 3" class="w-full h-full object-cover">
+        <span class="absolute bottom-1 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded">示範手勢</span>
+      </div>
+      <input type="file" id="file-3" accept="image/*" capture="environment" class="hidden" onchange="handlePhotoUpload(3, event)">
+      <button id="btn-3" onclick="document.getElementById('file-3').click()" class="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm transition">
+        📸 模仿此手勢拍照驗證
+      </button>
+      <div id="result-3" class="text-xs mt-2 font-medium hidden"></div>
+    </div>
+
+    <!-- 未完成提示卡 -->
+    <div id="card-locked-hint" class="card-glass rounded-2xl p-4 text-center border border-white/30">
+      <div class="text-emerald-800 font-bold text-sm">🔒 聖誕好禮兌換尚未解鎖</div>
+      <p id="progress-summary" class="text-xs text-gray-600 mt-1">目前進度：0 / 3 關。完成 3 項任務即可出示領獎！</p>
+    </div>
+
+    <!-- 3關完成後浮現的兌領憑證 -->
+    <div id="card-prize-certificate" class="hidden bg-gradient-to-b from-amber-100 via-white to-amber-50 rounded-2xl p-6 shadow-2xl border-4 border-amber-400 text-center prize-glow">
+      <div class="inline-block bg-red-600 text-white text-[11px] px-3 py-1 rounded-full font-black tracking-wider uppercase mb-2">
+        ★ 通關兌獎憑證 ★
+      </div>
+      <h3 class="text-gray-800 font-black text-lg">恭喜完成 3 大聖誕尋影任務！</h3>
+      <p class="text-xs text-gray-500 mt-0.5">請向出口工作人員出示此畫面直接領獎</p>
+
+      <div class="my-4 py-4 px-3 bg-red-50 border-2 border-dashed border-red-400 rounded-xl">
+        <div class="text-xs font-bold text-red-500">獲得獎項</div>
+        <div id="display-prize-name" class="text-2xl font-black text-red-600 tracking-wide mt-1">
+          聖誕限定好禮
+        </div>
+        <div id="live-timer" class="text-[10px] text-gray-400 mt-2 font-mono"></div>
+      </div>
+
+      <div class="text-xs text-gray-600 mb-4 bg-amber-50 p-2.5 rounded-lg border border-amber-200">
+        📢 <b>溫馨提醒</b>：請出示給櫃檯人員，並由店員點擊下方按鈕完成領取！
+      </div>
+
+      <button id="btn-staff-confirm" onclick="handleStaffConfirm()" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold text-sm rounded-xl shadow-lg transition">
+        👉【店員專用】點擊確認兌換此獎項
+      </button>
+
+      <div id="redeemed-success-box" class="hidden mt-3 p-3 bg-gray-100 border border-gray-300 rounded-xl text-xs text-gray-600">
+        <div class="font-bold text-gray-800">✅ 獎品已兌換發放完畢</div>
+        <div id="display-redeem-time" class="text-[11px] text-gray-500 mt-0.5"></div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const LIFF_ID = "2012399222-o6pnLa8F";
+    const GAS_API_URL = "https://script.google.com/macros/s/AKfycbyHF38bM4TQJ2_te8CrNJNvjYYjIsjqUaQpKozzsh2mZd-mveBEKzMt6nvGRAziekbD/exec";
+
+    let currentUserId = null;
+    let currentUserName = null;
+    let userState = { task1: false, task2: false, task3: false, allCleared: false, redeemed: false, prize: '', redeemTime: '' };
+
+    async function callBackend(payload) {
+      const resp = await fetch(GAS_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+      return await resp.json();
+    }
+
+    window.onload = function() {
+      setInterval(() => {
+        const timerEl = document.getElementById('live-timer');
+        if (timerEl) timerEl.innerText = '憑證驗證時間：' + new Date().toLocaleTimeString();
+      }, 1000);
+
+      callBackend({ action: 'getPhotos' }).then(photos => {
+        if (photos && photos[1]) document.getElementById('img-official-1').src = photos[1];
+        if (photos && photos[2]) document.getElementById('img-official-2').src = photos[2];
+        if (photos && photos[3]) document.getElementById('img-official-3').src = photos[3];
+      });
+
+      liff.init({ liffId: LIFF_ID }).then(() => {
+        if (!liff.isLoggedIn()) {
+          liff.login();
+        } else {
+          liff.getProfile().then(profile => {
+            currentUserId = profile.userId;
+            currentUserName = profile.displayName;
+            document.getElementById('user-info').innerText = `你好，${currentUserName}！`;
+            document.getElementById('loading-mask').classList.add('hidden');
+            syncProgress();
+          });
+        }
+      }).catch(err => {
+        alert("LIFF 連線失敗：" + err.message);
+      });
+    };
+
+    function syncProgress() {
+      if (!currentUserId) return;
+      callBackend({ action: 'getProgress', userId: currentUserId, userName: currentUserName }).then(res => {
+        if (res) {
+          userState = res;
+          renderUI();
+        }
+      });
+    }
+
+    function renderUI() {
+      let passedCount = 0;
+      [1, 2, 3].forEach(i => {
+        const isPassed = userState['task' + i];
+        const badge = document.getElementById('badge-' + i);
+        const btn = document.getElementById('btn-' + i);
+        if (isPassed) {
+          passedCount++;
+          badge.className = "text-xs px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 font-bold";
+          badge.innerText = "✓ 已通過";
+          btn.className = "w-full py-2 bg-gray-100 text-gray-400 font-bold rounded-xl text-xs cursor-not-allowed";
+          btn.innerText = "本關已達成";
+          btn.disabled = true;
+        }
+      });
+
+      document.getElementById('progress-summary').innerText = `目前進度：${passedCount} / 3 關。完成 3 項任務即可出示領獎！`;
+
+      if (userState.allCleared) {
+        document.getElementById('card-locked-hint').classList.add('hidden');
+        document.getElementById('card-prize-certificate').classList.remove('hidden');
+        if (userState.prize) document.getElementById('display-prize-name').innerText = userState.prize;
+
+        if (userState.redeemed) {
+          document.getElementById('btn-staff-confirm').classList.add('hidden');
+          document.getElementById('redeemed-success-box').classList.remove('hidden');
+          document.getElementById('display-redeem-time').innerText = '核銷時間：' + (userState.redeemTime || '已發放');
+        }
+      }
+    }
+
+    function handlePhotoUpload(taskIndex, event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const btn = document.getElementById('btn-' + taskIndex);
+      const resDiv = document.getElementById('result-' + taskIndex);
+      btn.innerText = "AI 正在比對手勢中...";
+      btn.disabled = true;
+      resDiv.className = "text-xs mt-2 font-medium text-amber-600 block";
+      resDiv.innerText = "正在比對手勢與角度...";
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const maxDim = 1000;
+
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+
+          callBackend({
+            action: 'verifyPhoto',
+            userId: currentUserId,
+            taskIndex: taskIndex,
+            base64Image: compressedDataUrl
+          }).then(result => {
+            if (result.passed) {
+              userState['task' + taskIndex] = true;
+              userState.allCleared = userState.task1 && userState.task2 && userState.task3;
+              resDiv.className = "text-xs mt-2 font-medium text-emerald-600 block";
+              resDiv.innerText = "🎉 驗證通過！手勢完全吻合！";
+              renderUI();
+              syncProgress();
+            } else {
+              resDiv.className = "text-xs mt-2 font-medium text-red-600 block";
+              resDiv.innerText = "❌ " + (result.reason || "手勢不符，請依示範照重新拍攝");
+              btn.innerText = "📸 重新模仿手勢拍攝";
+              btn.disabled = false;
+            }
+          }).catch(err => {
+            resDiv.className = "text-xs mt-2 font-medium text-red-600 block";
+            resDiv.innerText = "連線失敗：" + err.message;
+            btn.innerText = "📸 重新模仿手勢拍攝";
+            btn.disabled = false;
+          });
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function handleStaffConfirm() {
+      if (!confirm("【工作人員確認】\n確認已發放禮物給遊客？點擊後憑證將標記為已兌換！")) return;
+
+      const btn = document.getElementById('btn-staff-confirm');
+      btn.innerText = "核銷中...";
+      btn.disabled = true;
+
+      callBackend({ action: 'redeem', userId: currentUserId }).then(res => {
+        if (res.success) {
+          alert(`✅ 核銷成功！\n已發放：${res.prize}\n時間：${res.time}`);
+          syncProgress();
+        } else {
+          alert(res.message);
+          btn.disabled = false;
+          btn.innerText = "👉【店員專用】點擊確認兌換此獎項";
+        }
+      });
+    }
+  </script>
+</body>
+</html>
