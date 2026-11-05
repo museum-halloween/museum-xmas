@@ -303,68 +303,79 @@
       return Math.hypot(p1.x - p2.x, p1.y - p2.y);
     }
 
+    // ★ 核心算法：以骨科筆直度比率 (直線長度 / 關節折線總長) 判定伸直或彎曲
+    function getFingerStraightness(mcpIdx, pipIdx, dipIdx, tipIdx, landmarks) {
+      const d1 = dist(landmarks[mcpIdx], landmarks[pipIdx]);
+      const d2 = dist(landmarks[pipIdx], landmarks[dipIdx]);
+      const d3 = dist(landmarks[dipIdx], landmarks[tipIdx]);
+      const totalCurve = d1 + d2 + d3;
+      const directChord = dist(landmarks[mcpIdx], landmarks[tipIdx]);
+      return totalCurve > 0 ? (directChord / totalCurve) : 0;
+    }
+
     function checkGestureGeometry(taskIndex, landmarks) {
-      const wrist = landmarks[0];
+      const palmSize = dist(landmarks[0], landmarks[9]); // 手腕到中指根長度（掌心基準尺標）
 
-      // 檢查食、中、無名、小指是否伸直
-      const isExtended = (tipIdx, pipIdx, mcpIdx) => {
-        const dTipWrist = dist(landmarks[tipIdx], wrist);
-        const dPipWrist = dist(landmarks[pipIdx], wrist);
-        const dTipMcp = dist(landmarks[tipIdx], landmarks[mcpIdx]);
-        const dPipMcp = dist(landmarks[pipIdx], landmarks[mcpIdx]);
-        return dTipWrist > dPipWrist * 1.12 && dTipMcp > dPipMcp * 1.2;
-      };
+      // 各指筆直度計算（伸直時通常 > 0.80；折曲收攏時通常 < 0.60）
+      const indexStraight = getFingerStraightness(5, 6, 7, 8, landmarks);
+      const middleStraight = getFingerStraightness(9, 10, 11, 12, landmarks);
+      const ringStraight = getFingerStraightness(13, 14, 15, 16, landmarks);
+      const pinkyStraight = getFingerStraightness(17, 18, 19, 20, landmarks);
 
-      // 檢查手指是否收折蜷縮（握拳）
-      const isCurled = (tipIdx, pipIdx) => {
-        return dist(landmarks[tipIdx], wrist) <= dist(landmarks[pipIdx], wrist) * 1.05;
-      };
+      // 姆指筆直度與外展判斷
+      const dThumb23 = dist(landmarks[2], landmarks[3]);
+      const dThumb34 = dist(landmarks[3], landmarks[4]);
+      const thumbStraight = (dThumb23 + dThumb34 > 0) ? (dist(landmarks[2], landmarks[4]) / (dThumb23 + dThumb34)) : 0;
+      
+      // 姆指張開：姆指尖離中指根與食指根需有足夠展開距離
+      const thumbDistToMiddleMcp = dist(landmarks[4], landmarks[9]);
+      const thumbDistToIndexMcp = dist(landmarks[4], landmarks[5]);
+      const thumbOpen = (thumbStraight > 0.78) && 
+                        (thumbDistToMiddleMcp > palmSize * 0.52) && 
+                        (thumbDistToIndexMcp > palmSize * 0.35);
 
-      const indexOpen = isExtended(8, 6, 5);      // 食指伸直
-      const middleOpen = isExtended(12, 10, 9);    // 中指伸直
-      const ringOpen = isExtended(16, 14, 13);     // 無名指伸直
-      const pinkyOpen = isExtended(20, 18, 17);    // 小指伸直
+      const indexOpen = indexStraight > 0.78;
+      const middleOpen = middleStraight > 0.78;
+      const ringOpen = ringStraight > 0.78;
+      const pinkyOpen = pinkyStraight > 0.78;
 
-      const indexClosed = isCurled(8, 6);
-      const middleClosed = isCurled(12, 10);
-      const ringClosed = isCurled(16, 14);
-      const pinkyClosed = isCurled(20, 18);
-
-      // ★ 大拇指嚴格檢驗（封殺比「4」的漏洞）
-      // 大拇指張開時，拇指尖(4)必須向外展開，遠離中指指根(9)與食指指根(5)
-      // 若拇指折進掌心比 4，拇指尖會靠在中指指根附近，dThumbMiddle 會大幅縮小
-      const dThumbMiddle = dist(landmarks[4], landmarks[9]);
-      const dThumbBaseMiddle = dist(landmarks[2], landmarks[9]);
-      const dThumbIndex = dist(landmarks[4], landmarks[5]);
-      const dThumbJointIndex = dist(landmarks[3], landmarks[5]);
-      const thumbOpen = (dThumbMiddle > dThumbBaseMiddle * 1.15) && (dThumbIndex > dThumbJointIndex * 1.1);
+      // 統計實際張開的手指數量 (0~5)
+      const openCount = (thumbOpen ? 1 : 0) + 
+                        (indexOpen ? 1 : 0) + 
+                        (middleOpen ? 1 : 0) + 
+                        (ringOpen ? 1 : 0) + 
+                        (pinkyOpen ? 1 : 0);
 
       if (taskIndex === 1) {
-        // 任務一：五指張開（五根手指必須全部伸展）
-        if (thumbOpen && indexOpen && middleOpen && ringOpen && pinkyOpen) {
+        // 任務一：五指必須全部張開
+        if (openCount === 5) {
           return { passed: true };
         }
-        if (!thumbOpen && indexOpen && middleOpen && ringOpen && pinkyOpen) {
+        if (!thumbOpen && openCount === 4) {
           return { passed: false, reason: "大拇指未張開（不可比4），請伸出五指！" };
         }
-        return { passed: false, reason: "請將五根手指完全伸直張開拍照！" };
+        return { passed: false, reason: `偵測到僅伸出 ${openCount} 根手指，請張開全部五指！` };
       } 
       else if (taskIndex === 2) {
         // 任務二：剪刀手（食指與中指伸長，無名指與小指收攏）
-        if (indexOpen && middleOpen && ringClosed && pinkyClosed) {
+        if (indexOpen && middleOpen && !ringOpen && !pinkyOpen) {
           return { passed: true };
         }
-        return { passed: false, reason: "手勢不符，請比出剪刀手(YA)！" };
+        if (ringOpen || pinkyOpen) {
+          return { passed: false, reason: "無名指與小指未收緊，請比出標準剪刀手！" };
+        }
+        return { passed: false, reason: "手勢不符，請伸出食指與中指比出 YA！" };
       } 
       else if (taskIndex === 3) {
-        // 任務三：握拳
+        // 任務三：握拳（所有手指皆不可伸直）
         if (indexOpen || middleOpen || ringOpen || pinkyOpen) {
-          return { passed: false, reason: "偵測到有手指伸出，請緊握拳頭！" };
+          return { passed: false, reason: "偵測到有手指伸出（嚴禁伸指），請緊握拳頭！" };
         }
-        if (indexClosed && middleClosed && ringClosed && pinkyClosed) {
+        // 四指皆須蜷曲（筆直度小於 0.68）
+        if (indexStraight < 0.68 && middleStraight < 0.68 && ringStraight < 0.68 && pinkyStraight < 0.68) {
           return { passed: true };
         }
-        return { passed: false, reason: "請將手指完全握緊成拳頭！" };
+        return { passed: false, reason: "請將手指完全收折握緊成拳頭！" };
       }
       return { passed: false, reason: "手勢不符，請重新比對拍攝" };
     }
