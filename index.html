@@ -5,11 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>幻覺博物館 - 聖誕尋影任務</title>
 
-  <!-- 自動清除手機舊快取殘留，100% 以試算表為唯一準則 -->
+  <!-- 自動強制消除舊版手機中的任何鎖定殘留 -->
   <script>
     try {
-      localStorage.clear();
-      sessionStorage.clear();
+      localStorage.removeItem('xmas_redeemed_locked');
+      if (window.location.search.includes('reset=1')) {
+        localStorage.clear();
+        history.replaceState(null, '', window.location.pathname);
+      }
     } catch(e) {}
   </script>
 
@@ -32,10 +35,10 @@
 </head>
 <body class="bg-xmas min-h-screen text-slate-800 pb-16">
 
-  <!-- 載入遮罩（後台試算表資料驗證完成前，嚴密遮蔽以杜絕偷按與畫面跳轉） -->
+  <!-- 載入遮罩（試算表連線對帳完成前遮蔽，杜絕閃爍與跳轉） -->
   <div id="loading-mask" class="fixed inset-0 bg-slate-900/95 flex flex-col items-center justify-center z-50 text-white transition-opacity duration-300">
     <div class="animate-spin rounded-full h-12 w-12 border-4 border-amber-400 border-t-transparent mb-4"></div>
-    <div id="loading-text" class="text-sm font-bold tracking-wider">正在連線試算表資料庫...</div>
+    <div class="text-sm font-bold tracking-wider">正在連線試算表資料庫...</div>
   </div>
 
   <header class="pt-6 pb-4 px-4 text-center text-white">
@@ -49,7 +52,7 @@
 
   <main class="max-w-md mx-auto px-4 space-y-4">
 
-    <!-- 帳號已完成活動提示卡（試算表標記 redeemed === true 時顯示） -->
+    <!-- 帳號已完成活動提示卡（試算表有核銷紀錄時才顯示） -->
     <div id="account-finished-card" class="hidden bg-gray-900/90 border-2 border-amber-400 text-white rounded-2xl p-6 text-center shadow-2xl">
       <div class="text-4xl mb-2">🎁</div>
       <div class="text-lg font-black text-amber-300">本帳號已完成活動！</div>
@@ -213,7 +216,7 @@
           currentUserName = profile.displayName;
           document.getElementById('user-info').innerText = `你好，${currentUserName}！`;
 
-          // ★ 唯一最高標準：先向 Google 試算表查最新狀態，更新完畫面才關閉遮罩
+          // ★ 唯一依據：向 Google 試算表查詢最新進度，更新完介面後才打開遮罩
           await syncProgress();
           document.getElementById('loading-mask').classList.add('hidden');
         }
@@ -238,7 +241,7 @@
 
     // 依據試算表狀態決定畫面
     function renderUI() {
-      // 1. 若試算表標記為「已核銷兌獎」
+      // 1. 若試算表標記為已核銷
       if (userState.redeemed) {
         document.getElementById('task-group').classList.add('hidden');
         document.getElementById('card-locked-hint').classList.add('hidden');
@@ -252,7 +255,7 @@
         return;
       }
 
-      // 2. 若未核銷（含新用戶、或紀錄已被管理者刪除）：正常顯示任務卡
+      // 2. 若未核銷（含新帳號、或試算表紀錄被管理者刪除）：正常展示任務卡片
       document.getElementById('task-group').classList.remove('hidden');
       document.getElementById('account-finished-card').classList.add('hidden');
 
@@ -289,7 +292,7 @@
 
       document.getElementById('progress-summary').innerText = `目前進度：${passedCount} / 3 關。完成 3 項任務即可出示領獎！`;
 
-      // 3. 通關憑證顯示
+      // 3. 通關憑證狀態
       if (userState.allCleared) {
         document.getElementById('card-locked-hint').classList.add('hidden');
         document.getElementById('card-prize-certificate').classList.remove('hidden');
@@ -306,7 +309,6 @@
       return Math.hypot(p1.x - p2.x, p1.y - p2.y);
     }
 
-    // 手指筆直度比率運算
     function getFingerStraightness(mcpIdx, pipIdx, dipIdx, tipIdx, landmarks) {
       const d1 = dist(landmarks[mcpIdx], landmarks[pipIdx]);
       const d2 = dist(landmarks[pipIdx], landmarks[dipIdx]);
