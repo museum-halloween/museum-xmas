@@ -35,6 +35,7 @@
   </header>
 
   <main class="max-w-md mx-auto px-4 space-y-4">
+
     <!-- 任務 1 -->
     <div class="card-glass rounded-2xl p-4 shadow-xl border border-white/20">
       <div class="flex items-center justify-between mb-2">
@@ -45,7 +46,7 @@
         <span id="badge-1" class="text-xs px-2.5 py-1 rounded-full bg-gray-200 text-gray-600 font-bold">未完成</span>
       </div>
       <div class="relative rounded-xl overflow-hidden bg-gray-100 aspect-video mb-2 flex items-center justify-center border">
-        <img src="demo1.jpg" alt="官方示範照 1" class="w-full h-full object-cover">
+        <img src="demo1.jpg" alt="示範照 1" class="w-full h-full object-cover">
         <span class="absolute bottom-1 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded">示範手勢</span>
       </div>
       <p class="text-xs text-gray-500 mb-2">請伸出<b>五指完全張開</b>的手掌或手影拍照！</p>
@@ -66,7 +67,7 @@
         <span id="badge-2" class="text-xs px-2.5 py-1 rounded-full bg-gray-200 text-gray-600 font-bold">未完成</span>
       </div>
       <div class="relative rounded-xl overflow-hidden bg-gray-100 aspect-video mb-2 flex items-center justify-center border">
-        <img src="demo2.jpg" alt="官方示範照 2" class="w-full h-full object-cover">
+        <img src="demo2.jpg" alt="示範照 2" class="w-full h-full object-cover">
         <span class="absolute bottom-1 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded">示範手勢</span>
       </div>
       <p class="text-xs text-gray-500 mb-2">請比出<b>剪刀手（食指與中指 V 字）</b>拍照！</p>
@@ -87,7 +88,7 @@
         <span id="badge-3" class="text-xs px-2.5 py-1 rounded-full bg-gray-200 text-gray-600 font-bold">未完成</span>
       </div>
       <div class="relative rounded-xl overflow-hidden bg-gray-100 aspect-video mb-2 flex items-center justify-center border">
-        <img src="demo3.jpg" alt="官方示範照 3" class="w-full h-full object-cover">
+        <img src="demo3.jpg" alt="示範照 3" class="w-full h-full object-cover">
         <span class="absolute bottom-1 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded">示範手勢</span>
       </div>
       <p class="text-xs text-gray-500 mb-2">請將手指收攏，比出<b>緊閉的拳頭</b>拍照！</p>
@@ -133,6 +134,7 @@
         <div id="display-redeem-time" class="text-[11px] text-gray-500 mt-0.5"></div>
       </div>
     </div>
+
   </main>
 
   <script>
@@ -222,10 +224,10 @@
 
       const btn = document.getElementById('btn-' + taskIndex);
       const resDiv = document.getElementById('result-' + taskIndex);
-      btn.innerText = "AI 正在嚴格審核手勢中...";
+      btn.innerText = "AI 正在比對手勢中...";
       btn.disabled = true;
       resDiv.className = "text-xs mt-2 font-medium text-amber-600 block";
-      resDiv.innerText = "正在比對手勢動作與手指特徵...";
+      resDiv.innerText = "正在比對手勢與角度...";
 
       const reader = new FileReader();
       reader.onload = function(e) {
