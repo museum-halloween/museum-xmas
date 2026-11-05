@@ -26,7 +26,7 @@
   <!-- 載入中遮罩 -->
   <div id="loading-mask" class="fixed inset-0 bg-slate-900/90 flex flex-col items-center justify-center z-50 text-white">
     <div class="animate-spin rounded-full h-12 w-12 border-4 border-amber-400 border-t-transparent mb-4"></div>
-    <div id="loading-text" class="text-sm font-bold tracking-wider">正在初始化手勢引擎與 LINE...</div>
+    <div class="text-sm font-bold tracking-wider">正在初始化手勢引擎與 LINE...</div>
   </div>
 
   <header class="pt-6 pb-4 px-4 text-center text-white">
@@ -148,8 +148,6 @@
     let currentUserId = null;
     let currentUserName = null;
     let userState = { task1: false, task2: false, task3: false, allCleared: false, redeemed: false, prize: '', redeemTime: '' };
-
-    // 初始化 MediaPipe 手勢偵測器
     let mpHands = null;
 
     async function initMediaPipe() {
@@ -239,48 +237,50 @@
       }
     }
 
-    // 本地純幾何骨架嚴格比對演算法
-    function checkGestureGeometry(taskIndex, landmarks) {
-      const wrist = landmarks[0];
+    // ★ 核心修復：指骨關節長度比率算法（不再看手腕，杜絕手掌長度造成的誤判）
+    function dist(p1, p2) {
+      return Math.hypot(p1.x - p2.x, p1.y - p2.y);
+    }
 
-      // 計算各手指是否伸直（指尖距離手腕 > 第二關節距離手腕）
-      const isExtended = (tipIdx, pipIdx, mcpIdx) => {
-        const dTip = Math.hypot(landmarks[tipIdx].x - wrist.x, landmarks[tipIdx].y - wrist.y);
-        const dPip = Math.hypot(landmarks[pipIdx].x - wrist.x, landmarks[pipIdx].y - wrist.y);
-        const dMcp = Math.hypot(landmarks[mcpIdx].x - wrist.x, landmarks[mcpIdx].y - wrist.y);
-        return dTip > dPip && dTip > dMcp;
+    function checkGestureGeometry(taskIndex, landmarks) {
+      // 判斷手指：指尖(TIP) 到 指根(MCP) 的距離 vs 第二關節(PIP) 到 指根(MCP)
+      // 伸直時比率在 1.5~2.3 之間；折曲收攏時比率小於 1.15
+      const isFingerOpen = (tipIdx, pipIdx, mcpIdx) => {
+        const dTip = dist(landmarks[tipIdx], landmarks[mcpIdx]);
+        const dPip = dist(landmarks[pipIdx], landmarks[mcpIdx]);
+        return dTip > dPip * 1.25;
       };
 
-      const indexOpen = isExtended(8, 6, 5);
-      const middleOpen = isExtended(12, 10, 9);
-      const ringOpen = isExtended(16, 14, 13);
-      const pinkyOpen = isExtended(20, 18, 17);
-      const thumbDistToPinky = Math.hypot(landmarks[4].x - landmarks[17].x, landmarks[4].y - landmarks[17].y);
-      const thumbJointToPinky = Math.hypot(landmarks[3].x - landmarks[17].x, landmarks[3].y - landmarks[17].y);
-      const thumbOpen = thumbDistToPinky > thumbJointToPinky * 1.05;
+      const indexOpen = isFingerOpen(8, 6, 5);      // 食指
+      const middleOpen = isFingerOpen(12, 10, 9);    // 中指
+      const ringOpen = isFingerOpen(16, 14, 13);     // 無名指
+      const pinkyOpen = isFingerOpen(20, 18, 17);    // 小指
+
+      // 即時狀態回顯，讓遊客與測試時清楚看到每一根手指的判定
+      const statusText = `食[${indexOpen?'開':'關'}] 中[${middleOpen?'開':'關'}] 無[${ringOpen?'開':'關'}] 小[${pinkyOpen?'開':'關'}]`;
 
       if (taskIndex === 1) {
-        // 任務一：五指張開（至少四指伸展且不可收攏）
+        // 任務一：五指張開（四指皆須伸直）
         if (indexOpen && middleOpen && ringOpen && pinkyOpen) {
-          return { passed: true };
+          return { passed: true, statusText };
         }
-        return { passed: false, reason: "手指未完全伸展，請張開五指拍照！" };
+        return { passed: false, reason: `請將手指完全張開 (${statusText})` };
       } 
       else if (taskIndex === 2) {
-        // 任務二：剪刀手（食指、中指伸出，無名指、小指緊閉）
+        // 任務二：剪刀手（食指、中指伸直，無名指、小指收攏折曲）
         if (indexOpen && middleOpen && !ringOpen && !pinkyOpen) {
-          return { passed: true };
+          return { passed: true, statusText };
         }
-        return { passed: false, reason: "手勢不符，請比出剪刀手(YA)！" };
+        return { passed: false, reason: `請比出剪刀手YA (${statusText})` };
       } 
       else if (taskIndex === 3) {
-        // 任務三：握拳（所有手指收攏緊閉）
+        // 任務三：握拳（四指全數收攏折曲）
         if (!indexOpen && !middleOpen && !ringOpen && !pinkyOpen) {
-          return { passed: true };
+          return { passed: true, statusText };
         }
-        return { passed: false, reason: "有手指伸出，請完全握緊拳頭！" };
+        return { passed: false, reason: `請緊握拳頭勿伸手 (${statusText})` };
       }
-      return { passed: false, reason: "比對失敗" };
+      return { passed: false, reason: "手勢比對失敗" };
     }
 
     function processHandGesture(taskIndex, event) {
@@ -292,7 +292,7 @@
       btn.innerText = "手機正即時運算手勢中...";
       btn.disabled = true;
       resDiv.className = "text-xs mt-2 font-medium text-amber-600 block";
-      resDiv.innerText = "計算骨架中 (0.1秒)...";
+      resDiv.innerText = "正在分析手骨架特徵...";
 
       const reader = new FileReader();
       reader.onload = function(e) {
@@ -317,11 +317,10 @@
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, width, height);
 
-          // 綁定 MediaPipe 辨識事件
           mpHands.onResults(async (results) => {
             if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
               resDiv.className = "text-xs mt-2 font-medium text-red-600 block";
-              resDiv.innerText = "❌ 未能清楚辨識手掌，請靠近鏡頭重拍！";
+              resDiv.innerText = "❌ 未能清楚辨識手掌，請對準鏡頭重拍！";
               btn.innerText = "📸 重新拍攝驗證";
               btn.disabled = false;
               return;
@@ -333,9 +332,8 @@
               userState['task' + taskIndex] = true;
               userState.allCleared = userState.task1 && userState.task2 && userState.task3;
               resDiv.className = "text-xs mt-2 font-medium text-emerald-600 block";
-              resDiv.innerText = "🎉 驗證通過！手勢完全吻合！";
+              resDiv.innerText = `🎉 驗證通過！手勢完全吻合！(${verdict.statusText})`;
               renderUI();
-              // 本地判定通過後，同步記帳至 Google 試算表
               callBackend({ action: 'recordSuccess', userId: currentUserId, taskIndex: taskIndex }).then(() => {
                 syncProgress();
               });
@@ -347,7 +345,6 @@
             }
           });
 
-          // 送交本地手機引擎分析
           await mpHands.send({ image: canvas });
         };
         img.src = e.target.result;
