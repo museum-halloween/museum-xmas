@@ -26,12 +26,12 @@
   <!-- 載入中遮罩 -->
   <div id="loading-mask" class="fixed inset-0 bg-slate-900/90 flex flex-col items-center justify-center z-50 text-white">
     <div class="animate-spin rounded-full h-12 w-12 border-4 border-amber-400 border-t-transparent mb-4"></div>
-    <div class="text-sm font-bold tracking-wider">正在初始化手勢引擎與 LINE...</div>
+    <div class="text-sm font-bold tracking-wider">正在連線 LINE 帳號...</div>
   </div>
 
   <header class="pt-6 pb-4 px-4 text-center text-white">
     <div class="inline-block bg-red-600 text-white text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider mb-2">
-      2026 聖誕限定活動
+      2026 聖誕限定活動（每帳號限玩一次）
     </div>
     <h1 class="text-2xl font-black tracking-wide text-amber-300">幻覺博物館｜聖誕尋影任務</h1>
     <p class="text-xs text-emerald-100 mt-1">模仿指定手勢，拍照驗證通關！</p>
@@ -39,6 +39,14 @@
   </header>
 
   <main class="max-w-md mx-auto px-4 space-y-4">
+
+    <!-- 帳號已完成活動提示卡（核銷後顯示） -->
+    <div id="account-finished-card" class="hidden bg-gray-900/90 border-2 border-amber-400 text-white rounded-2xl p-5 text-center shadow-2xl">
+      <div class="text-3xl mb-2">🎁</div>
+      <div class="text-base font-black text-amber-300">本帳號已完成活動！</div>
+      <p class="text-xs text-gray-300 mt-1">每個 LINE 帳號限參加一次活動，您已成功領取過聖誕好禮。</p>
+      <div class="mt-3 py-2 px-3 bg-white/10 rounded-xl text-xs text-amber-200 font-mono" id="account-redeemed-time"></div>
+    </div>
 
     <!-- 任務 1 -->
     <div class="card-glass rounded-2xl p-4 shadow-xl border border-white/20">
@@ -112,7 +120,7 @@
     <!-- 通關兌換憑證 -->
     <div id="card-prize-certificate" class="hidden bg-gradient-to-b from-amber-100 via-white to-amber-50 rounded-2xl p-6 shadow-2xl border-4 border-amber-400 text-center prize-glow">
       <div class="inline-block bg-red-600 text-white text-[11px] px-3 py-1 rounded-full font-black tracking-wider uppercase mb-2">
-        ★ 通關兌獎憑證 ★
+        ★ 通關兌獎憑證（每人限換一次） ★
       </div>
       <h3 class="text-gray-800 font-black text-lg">恭喜完成 3 大聖誕手勢任務！</h3>
       <p class="text-xs text-gray-500 mt-0.5">請向出口工作人員出示此畫面直接領獎</p>
@@ -229,52 +237,56 @@
         document.getElementById('card-prize-certificate').classList.remove('hidden');
         if (userState.prize) document.getElementById('display-prize-name').innerText = userState.prize;
 
+        // ★ 若帳號已兌獎，啟動永久封鎖展示卡
         if (userState.redeemed) {
+          document.getElementById('account-finished-card').classList.remove('hidden');
+          document.getElementById('account-redeemed-time').innerText = '核銷紀錄時間：' + (userState.redeemTime || '已兌畢');
           document.getElementById('btn-staff-confirm').classList.add('hidden');
           document.getElementById('redeemed-success-box').classList.remove('hidden');
           document.getElementById('display-redeem-time').innerText = '核銷時間：' + (userState.redeemTime || '已發放');
+
+          // 禁用所有按鈕
+          [1, 2, 3].forEach(i => {
+            const btn = document.getElementById('btn-' + i);
+            btn.disabled = true;
+            btn.className = "w-full py-2 bg-gray-100 text-gray-400 font-bold rounded-xl text-xs cursor-not-allowed";
+            btn.innerText = "活動已完成";
+          });
         }
       }
     }
 
-    // ★ 核心修復：指骨關節長度比率算法（不再看手腕，杜絕手掌長度造成的誤判）
     function dist(p1, p2) {
       return Math.hypot(p1.x - p2.x, p1.y - p2.y);
     }
 
     function checkGestureGeometry(taskIndex, landmarks) {
-      // 判斷手指：指尖(TIP) 到 指根(MCP) 的距離 vs 第二關節(PIP) 到 指根(MCP)
-      // 伸直時比率在 1.5~2.3 之間；折曲收攏時比率小於 1.15
       const isFingerOpen = (tipIdx, pipIdx, mcpIdx) => {
         const dTip = dist(landmarks[tipIdx], landmarks[mcpIdx]);
         const dPip = dist(landmarks[pipIdx], landmarks[mcpIdx]);
         return dTip > dPip * 1.25;
       };
 
-      const indexOpen = isFingerOpen(8, 6, 5);      // 食指
-      const middleOpen = isFingerOpen(12, 10, 9);    // 中指
-      const ringOpen = isFingerOpen(16, 14, 13);     // 無名指
-      const pinkyOpen = isFingerOpen(20, 18, 17);    // 小指
+      const indexOpen = isFingerOpen(8, 6, 5);      
+      const middleOpen = isFingerOpen(12, 10, 9);    
+      const ringOpen = isFingerOpen(16, 14, 13);     
+      const pinkyOpen = isFingerOpen(20, 18, 17);    
 
-      // 即時狀態回顯，讓遊客與測試時清楚看到每一根手指的判定
       const statusText = `食[${indexOpen?'開':'關'}] 中[${middleOpen?'開':'關'}] 無[${ringOpen?'開':'關'}] 小[${pinkyOpen?'開':'關'}]`;
 
       if (taskIndex === 1) {
-        // 任務一：五指張開（四指皆須伸直）
         if (indexOpen && middleOpen && ringOpen && pinkyOpen) {
           return { passed: true, statusText };
         }
         return { passed: false, reason: `請將手指完全張開 (${statusText})` };
       } 
       else if (taskIndex === 2) {
-        // 任務二：剪刀手（食指、中指伸直，無名指、小指收攏折曲）
         if (indexOpen && middleOpen && !ringOpen && !pinkyOpen) {
           return { passed: true, statusText };
         }
         return { passed: false, reason: `請比出剪刀手YA (${statusText})` };
       } 
       else if (taskIndex === 3) {
-        // 任務三：握拳（四指全數收攏折曲）
         if (!indexOpen && !middleOpen && !ringOpen && !pinkyOpen) {
           return { passed: true, statusText };
         }
@@ -284,6 +296,12 @@
     }
 
     function processHandGesture(taskIndex, event) {
+      // ★ 防弊：已兌獎帳號直接阻絕拍照上傳
+      if (userState.redeemed) {
+        alert("此 LINE 帳號已完成過活動並領取獎項，每人限參加一次！");
+        return;
+      }
+
       const file = event.target.files[0];
       if (!file) return;
 
@@ -329,13 +347,18 @@
             const verdict = checkGestureGeometry(taskIndex, results.multiHandLandmarks[0]);
 
             if (verdict.passed) {
-              userState['task' + taskIndex] = true;
-              userState.allCleared = userState.task1 && userState.task2 && userState.task3;
-              resDiv.className = "text-xs mt-2 font-medium text-emerald-600 block";
-              resDiv.innerText = `🎉 驗證通過！手勢完全吻合！(${verdict.statusText})`;
-              renderUI();
-              callBackend({ action: 'recordSuccess', userId: currentUserId, taskIndex: taskIndex }).then(() => {
-                syncProgress();
+              callBackend({ action: 'recordSuccess', userId: currentUserId, taskIndex: taskIndex }).then(res => {
+                if (res.success) {
+                  userState['task' + taskIndex] = true;
+                  userState.allCleared = userState.task1 && userState.task2 && userState.task3;
+                  resDiv.className = "text-xs mt-2 font-medium text-emerald-600 block";
+                  resDiv.innerText = `🎉 驗證通過！手勢完全吻合！(${verdict.statusText})`;
+                  renderUI();
+                  syncProgress();
+                } else {
+                  alert(res.message);
+                  syncProgress();
+                }
               });
             } else {
               resDiv.className = "text-xs mt-2 font-medium text-red-600 block";
@@ -353,7 +376,7 @@
     }
 
     function handleStaffConfirm() {
-      if (!confirm("【工作人員確認】\n確認已發放禮物給遊客？點擊後憑證將標記為已兌換！")) return;
+      if (!confirm("【工作人員確認】\n確認已發放禮物給遊客？點擊後本帳號將永久核銷，不可重複領取！")) return;
 
       const btn = document.getElementById('btn-staff-confirm');
       btn.innerText = "核銷中...";
@@ -361,7 +384,7 @@
 
       callBackend({ action: 'redeem', userId: currentUserId }).then(res => {
         if (res.success) {
-          alert(`✅ 核銷成功！\n已發放：${res.prize}\n時間：${res.time}`);
+          alert(`✅ 核銷成功！\n已發放：${res.prize}\n時間：${res.time}\n\n此帳號活動已正式完成。`);
           syncProgress();
         } else {
           alert(res.message);
