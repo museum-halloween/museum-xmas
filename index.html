@@ -5,13 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>幻覺博物館 - 聖誕尋影任務</title>
 
-  <!-- ★ 核心黑客加速：在瀏覽器繪製前第 0 毫秒執行，消滅任何跳轉與停頓 ★ -->
+  <!-- 0毫秒極速阻斷腳本 -->
   <script>
     (function() {
       try {
         const isRedeemed = localStorage.getItem('xmas_redeemed_locked');
         if (isRedeemed === 'true') {
-          // 若已兌獎，動態插入 CSS 直接隱藏所有任務卡，只顯示完成畫面
           const style = document.createElement('style');
           style.id = 'instant-lock-style';
           style.innerHTML = '.task-card-group, #card-locked-hint { display: none !important; } #account-finished-card { display: block !important; }';
@@ -23,7 +22,7 @@
 
   <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- 非同步載入本地手勢 AI 引擎 (MediaPipe Hands) -->
+  <!-- 載入本地手勢 AI 引擎 (MediaPipe Hands) -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous" defer></script>
 
@@ -57,7 +56,7 @@
 
   <main class="max-w-md mx-auto px-4 space-y-4">
 
-    <!-- 帳號已完成活動提示卡（秒出，絕不停頓） -->
+    <!-- 帳號已完成活動提示卡 -->
     <div id="account-finished-card" class="hidden bg-gray-900/90 border-2 border-amber-400 text-white rounded-2xl p-6 text-center shadow-2xl">
       <div class="text-4xl mb-2">🎁</div>
       <div class="text-lg font-black text-amber-300">本帳號已完成活動！</div>
@@ -67,7 +66,7 @@
       </div>
     </div>
 
-    <!-- 任務卡群組（包裝以便瞬間切換） -->
+    <!-- 任務卡群組 -->
     <div class="task-card-group space-y-4">
       <!-- 任務 1 -->
       <div class="card-glass rounded-2xl p-4 shadow-xl border border-white/20">
@@ -180,7 +179,6 @@
     let userState = { task1: false, task2: false, task3: false, allCleared: false, redeemed: false, prize: '', redeemTime: '' };
     let mpHands = null;
 
-    // 非同步載入 MediaPipe，不阻礙頁面啟動
     function getMediaPipe() {
       if (mpHands) return Promise.resolve(mpHands);
       return new Promise((resolve) => {
@@ -213,7 +211,6 @@
         if (timerEl) timerEl.innerText = '憑證驗證時間：' + new Date().toLocaleTimeString();
       }, 1000);
 
-      // 若本地已知此設備已兌換過，立刻關閉遮罩秒開
       if (localStorage.getItem('xmas_redeemed_locked') === 'true') {
         document.getElementById('loading-mask').classList.add('hidden');
       }
@@ -227,7 +224,6 @@
           currentUserName = profile.displayName;
           document.getElementById('user-info').innerText = `你好，${currentUserName}！`;
 
-          // 讀取該用戶專屬快取，0.01 秒瞬間還原介面
           const cached = localStorage.getItem('xmas_cache_' + currentUserId);
           if (cached) {
             try {
@@ -236,10 +232,7 @@
             } catch (e) {}
           }
 
-          // 遮罩在取得用戶身分後立刻淡出，完全不讓客人乾等 GAS
           document.getElementById('loading-mask').classList.add('hidden');
-
-          // 背景靜默向 GAS 同步最新進度
           syncProgress();
         }
       }).catch(err => {
@@ -293,10 +286,7 @@
         if (userState.prize) document.getElementById('display-prize-name').innerText = userState.prize;
 
         if (userState.redeemed) {
-          // 標記永久鎖定
           localStorage.setItem('xmas_redeemed_locked', 'true');
-          
-          // 徹底隱藏任務區與兌換按鈕，切換為已完成卡片
           const taskGroup = document.querySelector('.task-card-group');
           if (taskGroup) taskGroup.style.display = 'none';
           
@@ -309,32 +299,62 @@
       }
     }
 
+    // 支援 3D 空間距離（Z軸抗透視縮短）
     function dist(p1, p2) {
-      return Math.hypot(p1.x - p2.x, p1.y - p2.y);
+      const dz = (p1.z - p2.z) || 0;
+      return Math.hypot(p1.x - p2.x, p1.y - p2.y, dz);
     }
 
+    // ★ 徹底封殺中指漏洞的指關節幾何算法
     function checkGestureGeometry(taskIndex, landmarks) {
-      const wrist = landmarks[0];
-      const isExtended = (tipIdx, pipIdx) => {
-        return dist(landmarks[tipIdx], wrist) > dist(landmarks[pipIdx], wrist) * 1.05;
+      // 測量指尖(Tip)到掌根(MCP)的距離 vs 第二關節(PIP)到掌根(MCP)的距離
+      const isStraight = (tipIdx, pipIdx, mcpIdx) => {
+        const dTip = dist(landmarks[tipIdx], landmarks[mcpIdx]);
+        const dPip = dist(landmarks[pipIdx], landmarks[mcpIdx]);
+        return dTip > dPip * 1.35;
       };
 
-      const indexOpen = isExtended(8, 6);     
-      const middleOpen = isExtended(12, 10);  
-      const ringOpen = isExtended(16, 14);    
-      const pinkyOpen = isExtended(20, 18);   
+      const isCurled = (tipIdx, pipIdx, mcpIdx) => {
+        const dTip = dist(landmarks[tipIdx], landmarks[mcpIdx]);
+        const dPip = dist(landmarks[pipIdx], landmarks[mcpIdx]);
+        return dTip < dPip * 1.15;
+      };
+
+      const indexStraight = isStraight(8, 6, 5);      // 食指
+      const middleStraight = isStraight(12, 10, 9);    // 中指（關鍵角色）
+      const ringStraight = isStraight(16, 14, 13);     // 無名指
+      const pinkyStraight = isStraight(20, 18, 17);    // 小指
+
+      const indexCurled = isCurled(8, 6, 5);
+      const middleCurled = isCurled(12, 10, 9);
+      const ringCurled = isCurled(16, 14, 13);
+      const pinkyCurled = isCurled(20, 18, 17);
 
       if (taskIndex === 1) {
-        if (indexOpen && middleOpen && ringOpen && pinkyOpen) return { passed: true };
+        // 任務一：五指張開（四指皆伸展）
+        if (indexStraight && middleStraight && ringStraight && pinkyStraight) {
+          return { passed: true };
+        }
         return { passed: false, reason: "請將五根手指完全伸直張開拍照！" };
       } 
       else if (taskIndex === 2) {
-        if (indexOpen && middleOpen && !ringOpen && !pinkyOpen) return { passed: true };
+        // 任務二：剪刀手（食指與中指伸直，無名指與小指收攏）
+        if (indexStraight && middleStraight && !ringStraight && !pinkyStraight) {
+          return { passed: true };
+        }
         return { passed: false, reason: "手勢不符，請比出剪刀手(YA)！" };
       } 
       else if (taskIndex === 3) {
-        if (!indexOpen && !middleOpen && !ringOpen && !pinkyOpen) return { passed: true };
-        return { passed: false, reason: "請完全握緊拳頭，勿伸出手指！" };
+        // ★ 任務三：握拳（嚴格雙重封鎖）
+        // 防線 1：只要中指（或任何一指）伸出，立即退件！
+        if (middleStraight || indexStraight || ringStraight || pinkyStraight) {
+          return { passed: false, reason: "偵測到有手指伸出，請緊握拳頭！" };
+        }
+        // 防線 2：四指指尖必須全部確實折回掌心
+        if (indexCurled && middleCurled && ringCurled && pinkyCurled) {
+          return { passed: true };
+        }
+        return { passed: false, reason: "請完全握緊拳頭，手指收攏折進掌心！" };
       }
       return { passed: false, reason: "手勢不符，請重新比對拍攝" };
     }
