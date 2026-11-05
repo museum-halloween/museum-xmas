@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>幻覺博物館 - 聖誕尋影任務</title>
 
-  <!-- 自動強制消除舊版手機中的任何鎖定殘留 -->
   <script>
     try {
       localStorage.removeItem('xmas_redeemed_locked');
@@ -35,7 +34,7 @@
 </head>
 <body class="bg-xmas min-h-screen text-slate-800 pb-16">
 
-  <!-- 載入遮罩（試算表連線對帳完成前遮蔽，杜絕閃爍與跳轉） -->
+  <!-- 載入遮罩 -->
   <div id="loading-mask" class="fixed inset-0 bg-slate-900/95 flex flex-col items-center justify-center z-50 text-white transition-opacity duration-300">
     <div class="animate-spin rounded-full h-12 w-12 border-4 border-amber-400 border-t-transparent mb-4"></div>
     <div class="text-sm font-bold tracking-wider">正在連線試算表資料庫...</div>
@@ -52,7 +51,7 @@
 
   <main class="max-w-md mx-auto px-4 space-y-4">
 
-    <!-- 帳號已完成活動提示卡（試算表有核銷紀錄時才顯示） -->
+    <!-- 帳號已完成活動提示卡 -->
     <div id="account-finished-card" class="hidden bg-gray-900/90 border-2 border-amber-400 text-white rounded-2xl p-6 text-center shadow-2xl">
       <div class="text-4xl mb-2">🎁</div>
       <div class="text-lg font-black text-amber-300">本帳號已完成活動！</div>
@@ -216,7 +215,6 @@
           currentUserName = profile.displayName;
           document.getElementById('user-info').innerText = `你好，${currentUserName}！`;
 
-          // ★ 唯一依據：向 Google 試算表查詢最新進度，更新完介面後才打開遮罩
           await syncProgress();
           document.getElementById('loading-mask').classList.add('hidden');
         }
@@ -239,9 +237,7 @@
       }
     }
 
-    // 依據試算表狀態決定畫面
     function renderUI() {
-      // 1. 若試算表標記為已核銷
       if (userState.redeemed) {
         document.getElementById('task-group').classList.add('hidden');
         document.getElementById('card-locked-hint').classList.add('hidden');
@@ -255,7 +251,6 @@
         return;
       }
 
-      // 2. 若未核銷（含新帳號、或試算表紀錄被管理者刪除）：正常展示任務卡片
       document.getElementById('task-group').classList.remove('hidden');
       document.getElementById('account-finished-card').classList.add('hidden');
 
@@ -292,7 +287,6 @@
 
       document.getElementById('progress-summary').innerText = `目前進度：${passedCount} / 3 關。完成 3 項任務即可出示領獎！`;
 
-      // 3. 通關憑證狀態
       if (userState.allCleared) {
         document.getElementById('card-locked-hint').classList.add('hidden');
         document.getElementById('card-prize-certificate').classList.remove('hidden');
@@ -319,17 +313,18 @@
     }
 
     function checkGestureGeometry(taskIndex, landmarks) {
-      const palmSize = dist(landmarks[0], landmarks[9]);
+      const palmSize = dist(landmarks[0], landmarks[9]); // 手掌比例尺 (手腕到中指關節)
 
+      // 各指筆直度
       const indexStraight = getFingerStraightness(5, 6, 7, 8, landmarks);
       const middleStraight = getFingerStraightness(9, 10, 11, 12, landmarks);
       const ringStraight = getFingerStraightness(13, 14, 15, 16, landmarks);
       const pinkyStraight = getFingerStraightness(17, 18, 19, 20, landmarks);
 
+      // 大拇指外展判斷
       const dThumb23 = dist(landmarks[2], landmarks[3]);
       const dThumb34 = dist(landmarks[3], landmarks[4]);
       const thumbStraight = (dThumb23 + dThumb34 > 0) ? (dist(landmarks[2], landmarks[4]) / (dThumb23 + dThumb34)) : 0;
-      
       const thumbDistToMiddleMcp = dist(landmarks[4], landmarks[9]);
       const thumbDistToIndexMcp = dist(landmarks[4], landmarks[5]);
       const thumbOpen = (thumbStraight > 0.78) && 
@@ -347,6 +342,29 @@
                         (ringOpen ? 1 : 0) + 
                         (pinkyOpen ? 1 : 0);
 
+      // ★ 任務三專用：指尖到各指根關節(MCP)的收攏距離
+      const dIndexTipMcp = dist(landmarks[8], landmarks[5]);
+      const dMiddleTipMcp = dist(landmarks[12], landmarks[9]);
+      const dRingTipMcp = dist(landmarks[16], landmarks[13]);
+      const dPinkyTipMcp = dist(landmarks[20], landmarks[17]);
+
+      // 指尖是否收折蜷曲（低於 palmSize * 0.65 代表確實縮回掌心）
+      const indexCurled = dIndexTipMcp < palmSize * 0.65;
+      const middleCurled = dMiddleTipMcp < palmSize * 0.65;
+      const ringCurled = dRingTipMcp < palmSize * 0.65;
+      const pinkyCurled = dPinkyTipMcp < palmSize * 0.65;
+
+      // 檢查是否有手指明顯伸直（中指、食指等，伸直時距離通常大於 0.75 且 straightness 高）
+      const isStickingOut = (dTipMcp, straightness) => {
+        return dTipMcp > palmSize * 0.68 && straightness > 0.75;
+      };
+
+      const hasFingerOut = isStickingOut(dIndexTipMcp, indexStraight) ||
+                           isStickingOut(dMiddleTipMcp, middleStraight) ||
+                           isStickingOut(dRingTipMcp, ringStraight) ||
+                           isStickingOut(dPinkyTipMcp, pinkyStraight);
+
+      // --- 關卡判定 ---
       if (taskIndex === 1) {
         if (openCount === 5) return { passed: true };
         if (!thumbOpen && openCount === 4) return { passed: false, reason: "大拇指未張開（不可比4），請伸出五指！" };
@@ -358,10 +376,21 @@
         return { passed: false, reason: "手勢不符，請伸出食指與中指比出 YA！" };
       } 
       else if (taskIndex === 3) {
-        if (indexOpen || middleOpen || ringOpen || pinkyOpen) return { passed: false, reason: "偵測到有手指伸出（嚴禁伸指），請緊握拳頭！" };
-        if (indexStraight < 0.68 && middleStraight < 0.68 && ringStraight < 0.68 && pinkyStraight < 0.68) return { passed: true };
-        return { passed: false, reason: "請將手指完全收折握緊成拳頭！" };
+        // 1. 若大拇指外展豎起（比讚）
+        if (thumbOpen) {
+          return { passed: false, reason: "大拇指請收攏（勿比讚），請握成緊閉拳頭！" };
+        }
+        // 2. 若中指或其他任何手指伸出
+        if (hasFingerOut) {
+          return { passed: false, reason: "偵測到有手指伸出（嚴禁伸指），請緊握拳頭！" };
+        }
+        // 3. 四根手指皆縮回指根內側（握拳成立）
+        if (indexCurled && middleCurled && ringCurled && pinkyCurled) {
+          return { passed: true };
+        }
+        return { passed: false, reason: "請將四根手指完全握緊成拳頭！" };
       }
+
       return { passed: false, reason: "手勢不符，請重新比對拍攝" };
     }
 
@@ -406,6 +435,8 @@
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, width, height);
 
+          const imageBase64 = canvas.toDataURL('image/jpeg', 0.8);
+
           hands.onResults((results) => {
             if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
               resDiv.className = "text-xs mt-2 font-medium text-red-600 block";
@@ -422,10 +453,13 @@
               userState.allCleared = userState.task1 && userState.task2 && userState.task3;
               renderUI();
 
-              callBackend({ action: 'recordSuccess', userId: currentUserId, taskIndex: taskIndex }).then(res => {
-                if (res && res.success === false) {
-                  alert(res.message);
-                }
+              callBackend({ 
+                action: 'recordSuccess', 
+                userId: currentUserId, 
+                taskIndex: taskIndex,
+                imageBase64: imageBase64 
+              }).then(res => {
+                if (res && res.success === false) alert(res.message);
                 syncProgress();
               });
             } else {
@@ -463,4 +497,5 @@
     }
   </script>
 </body>
+</html>
 </html>
