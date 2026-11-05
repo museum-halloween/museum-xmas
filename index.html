@@ -23,10 +23,10 @@
 </head>
 <body class="bg-xmas min-h-screen text-slate-800 pb-16">
 
-  <!-- 載入中遮罩 -->
-  <div id="loading-mask" class="fixed inset-0 bg-slate-900/90 flex flex-col items-center justify-center z-50 text-white">
+  <!-- 載入中遮罩（資料未同步完成前嚴格遮蔽全螢幕） -->
+  <div id="loading-mask" class="fixed inset-0 bg-slate-900/95 flex flex-col items-center justify-center z-50 text-white transition-opacity duration-300">
     <div class="animate-spin rounded-full h-12 w-12 border-4 border-amber-400 border-t-transparent mb-4"></div>
-    <div class="text-sm font-bold tracking-wider">正在連線 LINE 帳號...</div>
+    <div id="loading-text" class="text-sm font-bold tracking-wider">正在驗證帳號活動資格...</div>
   </div>
 
   <header class="pt-6 pb-4 px-4 text-center text-white">
@@ -40,7 +40,7 @@
 
   <main class="max-w-md mx-auto px-4 space-y-4">
 
-    <!-- 帳號已完成活動提示卡（核銷後顯示） -->
+    <!-- 帳號已完成活動提示卡（核銷後秒出並永久鎖定） -->
     <div id="account-finished-card" class="hidden bg-gray-900/90 border-2 border-amber-400 text-white rounded-2xl p-5 text-center shadow-2xl">
       <div class="text-3xl mb-2">🎁</div>
       <div class="text-base font-black text-amber-300">本帳號已完成活動！</div>
@@ -165,8 +165,8 @@
       mpHands.setOptions({
         maxNumHands: 1,
         modelComplexity: 1,
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5
+        minDetectionConfidence: 0.3,
+        minTrackingConfidence: 0.3
       });
     }
 
@@ -187,31 +187,47 @@
 
       await initMediaPipe();
 
-      liff.init({ liffId: LIFF_ID }).then(() => {
+      liff.init({ liffId: LIFF_ID }).then(async () => {
         if (!liff.isLoggedIn()) {
           liff.login();
         } else {
-          liff.getProfile().then(profile => {
-            currentUserId = profile.userId;
-            currentUserName = profile.displayName;
-            document.getElementById('user-info').innerText = `你好，${currentUserName}！`;
-            document.getElementById('loading-mask').classList.add('hidden');
-            syncProgress();
-          });
+          const profile = await liff.getProfile();
+          currentUserId = profile.userId;
+          currentUserName = profile.displayName;
+          document.getElementById('user-info').innerText = `你好，${currentUserName}！`;
+
+          // ★ 0 秒秒速還原：先從 LocalStorage 撈取快取資料渲染，消滅任何閃爍
+          const cached = localStorage.getItem('xmas_cache_' + currentUserId);
+          if (cached) {
+            try {
+              userState = JSON.parse(cached);
+              renderUI();
+            } catch (e) {}
+          }
+
+          // 向試算表後端確認最新紀錄，完成後才關閉遮罩
+          await syncProgress();
+          document.getElementById('loading-mask').classList.add('hidden');
         }
       }).catch(err => {
         alert("LIFF 連線失敗：" + err.message);
+        document.getElementById('loading-mask').classList.add('hidden');
       });
     };
 
-    function syncProgress() {
+    async function syncProgress() {
       if (!currentUserId) return;
-      callBackend({ action: 'getProgress', userId: currentUserId, userName: currentUserName }).then(res => {
+      try {
+        const res = await callBackend({ action: 'getProgress', userId: currentUserId, userName: currentUserName });
         if (res) {
           userState = res;
+          // 同步存入本地快取
+          localStorage.setItem('xmas_cache_' + currentUserId, JSON.stringify(res));
           renderUI();
         }
-      });
+      } catch (e) {
+        console.error(e);
+      }
     }
 
     function renderUI() {
@@ -220,13 +236,19 @@
         const isPassed = userState['task' + i];
         const badge = document.getElementById('badge-' + i);
         const btn = document.getElementById('btn-' + i);
+        const resDiv = document.getElementById('result-' + i);
+
         if (isPassed) {
           passedCount++;
           badge.className = "text-xs px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 font-bold";
           badge.innerText = "✓ 已通過";
-          btn.className = "w-full py-2 bg-gray-100 text-gray-400 font-bold rounded-xl text-xs cursor-not-allowed";
-          btn.innerText = "本關已達成";
+          
+          btn.className = "w-full py-2.5 bg-emerald-600 text-white font-extrabold rounded-xl text-sm shadow cursor-default";
+          btn.innerText = "✓ 本關已通過";
           btn.disabled = true;
+
+          resDiv.className = "hidden";
+          resDiv.innerText = "";
         }
       });
 
@@ -237,7 +259,7 @@
         document.getElementById('card-prize-certificate').classList.remove('hidden');
         if (userState.prize) document.getElementById('display-prize-name').innerText = userState.prize;
 
-        // ★ 若帳號已兌獎，啟動永久封鎖展示卡
+        // ★ 若帳號已兌獎，永久封鎖操作
         if (userState.redeemed) {
           document.getElementById('account-finished-card').classList.remove('hidden');
           document.getElementById('account-redeemed-time').innerText = '核銷紀錄時間：' + (userState.redeemTime || '已兌畢');
@@ -245,11 +267,10 @@
           document.getElementById('redeemed-success-box').classList.remove('hidden');
           document.getElementById('display-redeem-time').innerText = '核銷時間：' + (userState.redeemTime || '已發放');
 
-          // 禁用所有按鈕
           [1, 2, 3].forEach(i => {
             const btn = document.getElementById('btn-' + i);
             btn.disabled = true;
-            btn.className = "w-full py-2 bg-gray-100 text-gray-400 font-bold rounded-xl text-xs cursor-not-allowed";
+            btn.className = "w-full py-2 bg-gray-200 text-gray-400 font-bold rounded-xl text-xs cursor-not-allowed";
             btn.innerText = "活動已完成";
           });
         }
@@ -261,42 +282,39 @@
     }
 
     function checkGestureGeometry(taskIndex, landmarks) {
-      const isFingerOpen = (tipIdx, pipIdx, mcpIdx) => {
-        const dTip = dist(landmarks[tipIdx], landmarks[mcpIdx]);
-        const dPip = dist(landmarks[pipIdx], landmarks[mcpIdx]);
-        return dTip > dPip * 1.25;
+      const wrist = landmarks[0];
+
+      const isExtended = (tipIdx, pipIdx) => {
+        return dist(landmarks[tipIdx], wrist) > dist(landmarks[pipIdx], wrist) * 1.05;
       };
 
-      const indexOpen = isFingerOpen(8, 6, 5);      
-      const middleOpen = isFingerOpen(12, 10, 9);    
-      const ringOpen = isFingerOpen(16, 14, 13);     
-      const pinkyOpen = isFingerOpen(20, 18, 17);    
-
-      const statusText = `食[${indexOpen?'開':'關'}] 中[${middleOpen?'開':'關'}] 無[${ringOpen?'開':'關'}] 小[${pinkyOpen?'開':'關'}]`;
+      const indexOpen = isExtended(8, 6);     
+      const middleOpen = isExtended(12, 10);  
+      const ringOpen = isExtended(16, 14);    
+      const pinkyOpen = isExtended(20, 18);   
 
       if (taskIndex === 1) {
         if (indexOpen && middleOpen && ringOpen && pinkyOpen) {
-          return { passed: true, statusText };
+          return { passed: true };
         }
-        return { passed: false, reason: `請將手指完全張開 (${statusText})` };
+        return { passed: false, reason: "請將五根手指完全伸直張開拍照！" };
       } 
       else if (taskIndex === 2) {
         if (indexOpen && middleOpen && !ringOpen && !pinkyOpen) {
-          return { passed: true, statusText };
+          return { passed: true };
         }
-        return { passed: false, reason: `請比出剪刀手YA (${statusText})` };
+        return { passed: false, reason: "手勢不符，請比出剪刀手(YA)！" };
       } 
       else if (taskIndex === 3) {
         if (!indexOpen && !middleOpen && !ringOpen && !pinkyOpen) {
-          return { passed: true, statusText };
+          return { passed: true };
         }
-        return { passed: false, reason: `請緊握拳頭勿伸手 (${statusText})` };
+        return { passed: false, reason: "請完全握緊拳頭，勿伸出手指！" };
       }
-      return { passed: false, reason: "手勢比對失敗" };
+      return { passed: false, reason: "手勢不符，請重新比對拍攝" };
     }
 
     function processHandGesture(taskIndex, event) {
-      // ★ 防弊：已兌獎帳號直接阻絕拍照上傳
       if (userState.redeemed) {
         alert("此 LINE 帳號已完成過活動並領取獎項，每人限參加一次！");
         return;
@@ -310,7 +328,7 @@
       btn.innerText = "手機正即時運算手勢中...";
       btn.disabled = true;
       resDiv.className = "text-xs mt-2 font-medium text-amber-600 block";
-      resDiv.innerText = "正在分析手骨架特徵...";
+      resDiv.innerText = "正在分析手部動作...";
 
       const reader = new FileReader();
       reader.onload = function(e) {
@@ -347,18 +365,16 @@
             const verdict = checkGestureGeometry(taskIndex, results.multiHandLandmarks[0]);
 
             if (verdict.passed) {
+              userState['task' + taskIndex] = true;
+              userState.allCleared = userState.task1 && userState.task2 && userState.task3;
+              localStorage.setItem('xmas_cache_' + currentUserId, JSON.stringify(userState));
+              renderUI();
+
               callBackend({ action: 'recordSuccess', userId: currentUserId, taskIndex: taskIndex }).then(res => {
-                if (res.success) {
-                  userState['task' + taskIndex] = true;
-                  userState.allCleared = userState.task1 && userState.task2 && userState.task3;
-                  resDiv.className = "text-xs mt-2 font-medium text-emerald-600 block";
-                  resDiv.innerText = `🎉 驗證通過！手勢完全吻合！(${verdict.statusText})`;
-                  renderUI();
-                  syncProgress();
-                } else {
+                if (res && res.success === false) {
                   alert(res.message);
-                  syncProgress();
                 }
+                syncProgress();
               });
             } else {
               resDiv.className = "text-xs mt-2 font-medium text-red-600 block";
@@ -384,7 +400,12 @@
 
       callBackend({ action: 'redeem', userId: currentUserId }).then(res => {
         if (res.success) {
+          userState.redeemed = true;
+          userState.prize = res.prize;
+          userState.redeemTime = res.time;
+          localStorage.setItem('xmas_cache_' + currentUserId, JSON.stringify(userState));
           alert(`✅ 核銷成功！\n已發放：${res.prize}\n時間：${res.time}\n\n此帳號活動已正式完成。`);
+          renderUI();
           syncProgress();
         } else {
           alert(res.message);
