@@ -4,11 +4,28 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>幻覺博物館 - 聖誕尋影任務</title>
+
+  <!-- ★ 核心黑客加速：在瀏覽器繪製前第 0 毫秒執行，消滅任何跳轉與停頓 ★ -->
+  <script>
+    (function() {
+      try {
+        const isRedeemed = localStorage.getItem('xmas_redeemed_locked');
+        if (isRedeemed === 'true') {
+          // 若已兌獎，動態插入 CSS 直接隱藏所有任務卡，只顯示完成畫面
+          const style = document.createElement('style');
+          style.id = 'instant-lock-style';
+          style.innerHTML = '.task-card-group, #card-locked-hint { display: none !important; } #account-finished-card { display: block !important; }';
+          document.head.appendChild(style);
+        }
+      } catch (e) {}
+    })();
+  </script>
+
   <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- 載入本地手勢 AI 引擎 (MediaPipe Hands) -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <!-- 非同步載入本地手勢 AI 引擎 (MediaPipe Hands) -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous" defer></script>
 
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
@@ -23,10 +40,10 @@
 </head>
 <body class="bg-xmas min-h-screen text-slate-800 pb-16">
 
-  <!-- 載入中遮罩（資料未同步完成前嚴格遮蔽全螢幕） -->
-  <div id="loading-mask" class="fixed inset-0 bg-slate-900/95 flex flex-col items-center justify-center z-50 text-white transition-opacity duration-300">
+  <!-- 載入遮罩 -->
+  <div id="loading-mask" class="fixed inset-0 bg-slate-900/90 flex flex-col items-center justify-center z-50 text-white transition-opacity duration-200">
     <div class="animate-spin rounded-full h-12 w-12 border-4 border-amber-400 border-t-transparent mb-4"></div>
-    <div id="loading-text" class="text-sm font-bold tracking-wider">正在驗證帳號活動資格...</div>
+    <div class="text-sm font-bold tracking-wider">正在連線...</div>
   </div>
 
   <header class="pt-6 pb-4 px-4 text-center text-white">
@@ -40,75 +57,80 @@
 
   <main class="max-w-md mx-auto px-4 space-y-4">
 
-    <!-- 帳號已完成活動提示卡（核銷後秒出並永久鎖定） -->
-    <div id="account-finished-card" class="hidden bg-gray-900/90 border-2 border-amber-400 text-white rounded-2xl p-5 text-center shadow-2xl">
-      <div class="text-3xl mb-2">🎁</div>
-      <div class="text-base font-black text-amber-300">本帳號已完成活動！</div>
-      <p class="text-xs text-gray-300 mt-1">每個 LINE 帳號限參加一次活動，您已成功領取過聖誕好禮。</p>
-      <div class="mt-3 py-2 px-3 bg-white/10 rounded-xl text-xs text-amber-200 font-mono" id="account-redeemed-time"></div>
+    <!-- 帳號已完成活動提示卡（秒出，絕不停頓） -->
+    <div id="account-finished-card" class="hidden bg-gray-900/90 border-2 border-amber-400 text-white rounded-2xl p-6 text-center shadow-2xl">
+      <div class="text-4xl mb-2">🎁</div>
+      <div class="text-lg font-black text-amber-300">本帳號已完成活動！</div>
+      <p class="text-xs text-gray-300 mt-1.5">每個 LINE 帳號限參加一次活動，您已成功領取過聖誕好禮。</p>
+      <div class="mt-4 py-2.5 px-3 bg-white/10 rounded-xl text-xs text-amber-200 font-mono" id="account-redeemed-time">
+        憑證狀態：已全數兌換完畢
+      </div>
     </div>
 
-    <!-- 任務 1 -->
-    <div class="card-glass rounded-2xl p-4 shadow-xl border border-white/20">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="font-bold text-base flex items-center gap-2">
-          <span class="w-6 h-6 rounded-full bg-red-600 text-white text-xs flex items-center justify-center font-black">1</span>
-          任務一：張開五指的手影
-        </h2>
-        <span id="badge-1" class="text-xs px-2.5 py-1 rounded-full bg-gray-200 text-gray-600 font-bold">未完成</span>
+    <!-- 任務卡群組（包裝以便瞬間切換） -->
+    <div class="task-card-group space-y-4">
+      <!-- 任務 1 -->
+      <div class="card-glass rounded-2xl p-4 shadow-xl border border-white/20">
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="font-bold text-base flex items-center gap-2">
+            <span class="w-6 h-6 rounded-full bg-red-600 text-white text-xs flex items-center justify-center font-black">1</span>
+            任務一：張開五指的手影
+          </h2>
+          <span id="badge-1" class="text-xs px-2.5 py-1 rounded-full bg-gray-200 text-gray-600 font-bold">未完成</span>
+        </div>
+        <div class="relative rounded-xl overflow-hidden bg-gray-100 aspect-video mb-2 flex items-center justify-center border">
+          <img src="demo1.jpg" alt="示範照 1" class="w-full h-full object-cover">
+          <span class="absolute bottom-1 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded">示範手勢</span>
+        </div>
+        <p class="text-xs text-gray-500 mb-2">請伸出<b>五指完全張開</b>的手掌拍照！</p>
+        <input type="file" id="file-1" accept="image/*" capture="environment" class="hidden" onchange="processHandGesture(1, event)">
+        <button id="btn-1" onclick="document.getElementById('file-1').click()" class="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm transition">
+          📸 拍照驗證五指手掌
+        </button>
+        <div id="result-1" class="text-xs mt-2 font-medium hidden"></div>
       </div>
-      <div class="relative rounded-xl overflow-hidden bg-gray-100 aspect-video mb-2 flex items-center justify-center border">
-        <img src="demo1.jpg" alt="示範照 1" class="w-full h-full object-cover">
-        <span class="absolute bottom-1 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded">示範手勢</span>
-      </div>
-      <p class="text-xs text-gray-500 mb-2">請伸出<b>五指完全張開</b>的手掌拍照！</p>
-      <input type="file" id="file-1" accept="image/*" capture="environment" class="hidden" onchange="processHandGesture(1, event)">
-      <button id="btn-1" onclick="document.getElementById('file-1').click()" class="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm transition">
-        📸 拍照驗證五指手掌
-      </button>
-      <div id="result-1" class="text-xs mt-2 font-medium hidden"></div>
-    </div>
 
-    <!-- 任務 2 -->
-    <div class="card-glass rounded-2xl p-4 shadow-xl border border-white/20">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="font-bold text-base flex items-center gap-2">
-          <span class="w-6 h-6 rounded-full bg-red-600 text-white text-xs flex items-center justify-center font-black">2</span>
-          任務二：剪刀手（YA）
-        </h2>
-        <span id="badge-2" class="text-xs px-2.5 py-1 rounded-full bg-gray-200 text-gray-600 font-bold">未完成</span>
+      <!-- 任務 2 -->
+      <div class="card-glass rounded-2xl p-4 shadow-xl border border-white/20">
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="font-bold text-base flex items-center gap-2">
+            <span class="w-6 h-6 rounded-full bg-red-600 text-white text-xs flex items-center justify-center font-black">2</span>
+            任務二：剪刀手（YA）
+          </h2>
+          <span id="badge-2" class="text-xs px-2.5 py-1 rounded-full bg-gray-200 text-gray-600 font-bold">未完成</span>
+        </div>
+        <div class="relative rounded-xl overflow-hidden bg-gray-100 aspect-video mb-2 flex items-center justify-center border">
+          <img src="demo2.jpg" alt="示範照 2" class="w-full h-full object-cover">
+          <span class="absolute bottom-1 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded">示範手勢</span>
+        </div>
+        <p class="text-xs text-gray-500 mb-2">請比出<b>剪刀手（食指與中指 V 字）</b>拍照！</p>
+        <input type="file" id="file-2" accept="image/*" capture="environment" class="hidden" onchange="processHandGesture(2, event)">
+        <button id="btn-2" onclick="document.getElementById('file-2').click()" class="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm transition">
+          📸 拍照驗證剪刀手
+        </button>
+        <div id="result-2" class="text-xs mt-2 font-medium hidden"></div>
       </div>
-      <div class="relative rounded-xl overflow-hidden bg-gray-100 aspect-video mb-2 flex items-center justify-center border">
-        <img src="demo2.jpg" alt="示範照 2" class="w-full h-full object-cover">
-        <span class="absolute bottom-1 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded">示範手勢</span>
-      </div>
-      <p class="text-xs text-gray-500 mb-2">請比出<b>剪刀手（食指與中指 V 字）</b>拍照！</p>
-      <input type="file" id="file-2" accept="image/*" capture="environment" class="hidden" onchange="processHandGesture(2, event)">
-      <button id="btn-2" onclick="document.getElementById('file-2').click()" class="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm transition">
-        📸 拍照驗證剪刀手
-      </button>
-      <div id="result-2" class="text-xs mt-2 font-medium hidden"></div>
-    </div>
 
-    <!-- 任務 3 -->
-    <div class="card-glass rounded-2xl p-4 shadow-xl border border-white/20">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="font-bold text-base flex items-center gap-2">
-          <span class="w-6 h-6 rounded-full bg-red-600 text-white text-xs flex items-center justify-center font-black">3</span>
-          任務三：握拳（石頭）
-        </h2>
-        <span id="badge-3" class="text-xs px-2.5 py-1 rounded-full bg-gray-200 text-gray-600 font-bold">未完成</span>
+      <!-- 任務 3 -->
+      <div class="card-glass rounded-2xl p-4 shadow-xl border border-white/20">
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="font-bold text-base flex items-center gap-2">
+            <span class="w-6 h-6 rounded-full bg-red-600 text-white text-xs flex items-center justify-center font-black">3</span>
+            任務三：握拳（石頭）
+          </h2>
+          <span id="badge-3" class="text-xs px-2.5 py-1 rounded-full bg-gray-200 text-gray-600 font-bold">未完成</span>
+        </div>
+        <div class="relative rounded-xl overflow-hidden bg-gray-100 aspect-video mb-2 flex items-center justify-center border">
+          <img src="demo3.jpg" alt="示範照 3" class="w-full h-full object-cover">
+          <span class="absolute bottom-1 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded">示範手勢</span>
+        </div>
+        <p class="text-xs text-gray-500 mb-2">請將手指收攏，比出<b>緊閉的拳頭</b>拍照！</p>
+        <input type="file" id="file-3" accept="image/*" capture="environment" class="hidden" onchange="processHandGesture(3, event)">
+        <button id="btn-3" onclick="document.getElementById('file-3').click()" class="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm transition">
+          📸 拍照驗證握拳
+        </button>
+        <div id="result-3" class="text-xs mt-2 font-medium hidden"></div>
       </div>
-      <div class="relative rounded-xl overflow-hidden bg-gray-100 aspect-video mb-2 flex items-center justify-center border">
-        <img src="demo3.jpg" alt="示範照 3" class="w-full h-full object-cover">
-        <span class="absolute bottom-1 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded">示範手勢</span>
-      </div>
-      <p class="text-xs text-gray-500 mb-2">請將手指收攏，比出<b>緊閉的拳頭</b>拍照！</p>
-      <input type="file" id="file-3" accept="image/*" capture="environment" class="hidden" onchange="processHandGesture(3, event)">
-      <button id="btn-3" onclick="document.getElementById('file-3').click()" class="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm transition">
-        📸 拍照驗證握拳
-      </button>
-      <div id="result-3" class="text-xs mt-2 font-medium hidden"></div>
     </div>
 
     <!-- 未完成提示卡 -->
@@ -158,15 +180,21 @@
     let userState = { task1: false, task2: false, task3: false, allCleared: false, redeemed: false, prize: '', redeemTime: '' };
     let mpHands = null;
 
-    async function initMediaPipe() {
-      mpHands = new Hands({
-        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-      });
-      mpHands.setOptions({
-        maxNumHands: 1,
-        modelComplexity: 1,
-        minDetectionConfidence: 0.3,
-        minTrackingConfidence: 0.3
+    // 非同步載入 MediaPipe，不阻礙頁面啟動
+    function getMediaPipe() {
+      if (mpHands) return Promise.resolve(mpHands);
+      return new Promise((resolve) => {
+        const hands = new Hands({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+        hands.setOptions({
+          maxNumHands: 1,
+          modelComplexity: 1,
+          minDetectionConfidence: 0.3,
+          minTrackingConfidence: 0.3
+        });
+        mpHands = hands;
+        resolve(hands);
       });
     }
 
@@ -179,13 +207,16 @@
       return await resp.json();
     }
 
-    window.onload = async function() {
+    window.onload = function() {
       setInterval(() => {
         const timerEl = document.getElementById('live-timer');
         if (timerEl) timerEl.innerText = '憑證驗證時間：' + new Date().toLocaleTimeString();
       }, 1000);
 
-      await initMediaPipe();
+      // 若本地已知此設備已兌換過，立刻關閉遮罩秒開
+      if (localStorage.getItem('xmas_redeemed_locked') === 'true') {
+        document.getElementById('loading-mask').classList.add('hidden');
+      }
 
       liff.init({ liffId: LIFF_ID }).then(async () => {
         if (!liff.isLoggedIn()) {
@@ -196,7 +227,7 @@
           currentUserName = profile.displayName;
           document.getElementById('user-info').innerText = `你好，${currentUserName}！`;
 
-          // ★ 0 秒秒速還原：先從 LocalStorage 撈取快取資料渲染，消滅任何閃爍
+          // 讀取該用戶專屬快取，0.01 秒瞬間還原介面
           const cached = localStorage.getItem('xmas_cache_' + currentUserId);
           if (cached) {
             try {
@@ -205,9 +236,11 @@
             } catch (e) {}
           }
 
-          // 向試算表後端確認最新紀錄，完成後才關閉遮罩
-          await syncProgress();
+          // 遮罩在取得用戶身分後立刻淡出，完全不讓客人乾等 GAS
           document.getElementById('loading-mask').classList.add('hidden');
+
+          // 背景靜默向 GAS 同步最新進度
+          syncProgress();
         }
       }).catch(err => {
         alert("LIFF 連線失敗：" + err.message);
@@ -221,13 +254,13 @@
         const res = await callBackend({ action: 'getProgress', userId: currentUserId, userName: currentUserName });
         if (res) {
           userState = res;
-          // 同步存入本地快取
           localStorage.setItem('xmas_cache_' + currentUserId, JSON.stringify(res));
+          if (res.redeemed) {
+            localStorage.setItem('xmas_redeemed_locked', 'true');
+          }
           renderUI();
         }
-      } catch (e) {
-        console.error(e);
-      }
+      } catch (e) {}
     }
 
     function renderUI() {
@@ -259,20 +292,19 @@
         document.getElementById('card-prize-certificate').classList.remove('hidden');
         if (userState.prize) document.getElementById('display-prize-name').innerText = userState.prize;
 
-        // ★ 若帳號已兌獎，永久封鎖操作
         if (userState.redeemed) {
+          // 標記永久鎖定
+          localStorage.setItem('xmas_redeemed_locked', 'true');
+          
+          // 徹底隱藏任務區與兌換按鈕，切換為已完成卡片
+          const taskGroup = document.querySelector('.task-card-group');
+          if (taskGroup) taskGroup.style.display = 'none';
+          
           document.getElementById('account-finished-card').classList.remove('hidden');
-          document.getElementById('account-redeemed-time').innerText = '核銷紀錄時間：' + (userState.redeemTime || '已兌畢');
+          document.getElementById('account-redeemed-time').innerText = '核銷時間：' + (userState.redeemTime || '已兌換發放完畢');
           document.getElementById('btn-staff-confirm').classList.add('hidden');
           document.getElementById('redeemed-success-box').classList.remove('hidden');
           document.getElementById('display-redeem-time').innerText = '核銷時間：' + (userState.redeemTime || '已發放');
-
-          [1, 2, 3].forEach(i => {
-            const btn = document.getElementById('btn-' + i);
-            btn.disabled = true;
-            btn.className = "w-full py-2 bg-gray-200 text-gray-400 font-bold rounded-xl text-xs cursor-not-allowed";
-            btn.innerText = "活動已完成";
-          });
         }
       }
     }
@@ -283,7 +315,6 @@
 
     function checkGestureGeometry(taskIndex, landmarks) {
       const wrist = landmarks[0];
-
       const isExtended = (tipIdx, pipIdx) => {
         return dist(landmarks[tipIdx], wrist) > dist(landmarks[pipIdx], wrist) * 1.05;
       };
@@ -294,27 +325,21 @@
       const pinkyOpen = isExtended(20, 18);   
 
       if (taskIndex === 1) {
-        if (indexOpen && middleOpen && ringOpen && pinkyOpen) {
-          return { passed: true };
-        }
+        if (indexOpen && middleOpen && ringOpen && pinkyOpen) return { passed: true };
         return { passed: false, reason: "請將五根手指完全伸直張開拍照！" };
       } 
       else if (taskIndex === 2) {
-        if (indexOpen && middleOpen && !ringOpen && !pinkyOpen) {
-          return { passed: true };
-        }
+        if (indexOpen && middleOpen && !ringOpen && !pinkyOpen) return { passed: true };
         return { passed: false, reason: "手勢不符，請比出剪刀手(YA)！" };
       } 
       else if (taskIndex === 3) {
-        if (!indexOpen && !middleOpen && !ringOpen && !pinkyOpen) {
-          return { passed: true };
-        }
+        if (!indexOpen && !middleOpen && !ringOpen && !pinkyOpen) return { passed: true };
         return { passed: false, reason: "請完全握緊拳頭，勿伸出手指！" };
       }
       return { passed: false, reason: "手勢不符，請重新比對拍攝" };
     }
 
-    function processHandGesture(taskIndex, event) {
+    async function processHandGesture(taskIndex, event) {
       if (userState.redeemed) {
         alert("此 LINE 帳號已完成過活動並領取獎項，每人限參加一次！");
         return;
@@ -329,6 +354,8 @@
       btn.disabled = true;
       resDiv.className = "text-xs mt-2 font-medium text-amber-600 block";
       resDiv.innerText = "正在分析手部動作...";
+
+      const hands = await getMediaPipe();
 
       const reader = new FileReader();
       reader.onload = function(e) {
@@ -353,7 +380,7 @@
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, width, height);
 
-          mpHands.onResults(async (results) => {
+          hands.onResults((results) => {
             if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
               resDiv.className = "text-xs mt-2 font-medium text-red-600 block";
               resDiv.innerText = "❌ 未能清楚辨識手掌，請對準鏡頭重拍！";
@@ -384,7 +411,7 @@
             }
           });
 
-          await mpHands.send({ image: canvas });
+          await hands.send({ image: canvas });
         };
         img.src = e.target.result;
       };
@@ -404,6 +431,7 @@
           userState.prize = res.prize;
           userState.redeemTime = res.time;
           localStorage.setItem('xmas_cache_' + currentUserId, JSON.stringify(userState));
+          localStorage.setItem('xmas_redeemed_locked', 'true');
           alert(`✅ 核銷成功！\n已發放：${res.prize}\n時間：${res.time}\n\n此帳號活動已正式完成。`);
           renderUI();
           syncProgress();
