@@ -5,19 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>幻覺博物館 - 聖誕尋影任務</title>
 
-  <!-- 0毫秒極速阻斷腳本 -->
+  <!-- 自動清除手機舊快取殘留，100% 以試算表為唯一準則 -->
   <script>
-    (function() {
-      try {
-        const isRedeemed = localStorage.getItem('xmas_redeemed_locked');
-        if (isRedeemed === 'true') {
-          const style = document.createElement('style');
-          style.id = 'instant-lock-style';
-          style.innerHTML = '.task-card-group, #card-locked-hint { display: none !important; } #account-finished-card { display: block !important; }';
-          document.head.appendChild(style);
-        }
-      } catch (e) {}
-    })();
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch(e) {}
   </script>
 
   <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
@@ -39,15 +32,15 @@
 </head>
 <body class="bg-xmas min-h-screen text-slate-800 pb-16">
 
-  <!-- 載入遮罩 -->
-  <div id="loading-mask" class="fixed inset-0 bg-slate-900/90 flex flex-col items-center justify-center z-50 text-white transition-opacity duration-200">
+  <!-- 載入遮罩（後台試算表資料驗證完成前，嚴密遮蔽以杜絕偷按與畫面跳轉） -->
+  <div id="loading-mask" class="fixed inset-0 bg-slate-900/95 flex flex-col items-center justify-center z-50 text-white transition-opacity duration-300">
     <div class="animate-spin rounded-full h-12 w-12 border-4 border-amber-400 border-t-transparent mb-4"></div>
-    <div class="text-sm font-bold tracking-wider">正在連線...</div>
+    <div id="loading-text" class="text-sm font-bold tracking-wider">正在連線試算表資料庫...</div>
   </div>
 
   <header class="pt-6 pb-4 px-4 text-center text-white">
     <div class="inline-block bg-red-600 text-white text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider mb-2">
-      2026 聖誕限定活動（每帳號限玩一次）
+      2026 聖誕限定活動
     </div>
     <h1 class="text-2xl font-black tracking-wide text-amber-300">幻覺博物館｜聖誕尋影任務</h1>
     <p class="text-xs text-emerald-100 mt-1">模仿指定手勢，拍照驗證通關！</p>
@@ -56,18 +49,18 @@
 
   <main class="max-w-md mx-auto px-4 space-y-4">
 
-    <!-- 帳號已完成活動提示卡 -->
+    <!-- 帳號已完成活動提示卡（試算表標記 redeemed === true 時顯示） -->
     <div id="account-finished-card" class="hidden bg-gray-900/90 border-2 border-amber-400 text-white rounded-2xl p-6 text-center shadow-2xl">
       <div class="text-4xl mb-2">🎁</div>
       <div class="text-lg font-black text-amber-300">本帳號已完成活動！</div>
-      <p class="text-xs text-gray-300 mt-1.5">每個 LINE 帳號限參加一次活動，您已成功領取過聖誕好禮。</p>
+      <p class="text-xs text-gray-300 mt-1.5">每個 LINE 帳號限領一次獎品，您已完成兌換。</p>
       <div class="mt-4 py-2.5 px-3 bg-white/10 rounded-xl text-xs text-amber-200 font-mono" id="account-redeemed-time">
         憑證狀態：已全數兌換完畢
       </div>
     </div>
 
     <!-- 任務卡群組 -->
-    <div class="task-card-group space-y-4">
+    <div id="task-group" class="space-y-4">
       <!-- 任務 1 -->
       <div class="card-glass rounded-2xl p-4 shadow-xl border border-white/20">
         <div class="flex items-center justify-between mb-2">
@@ -211,10 +204,6 @@
         if (timerEl) timerEl.innerText = '憑證驗證時間：' + new Date().toLocaleTimeString();
       }, 1000);
 
-      if (localStorage.getItem('xmas_redeemed_locked') === 'true') {
-        document.getElementById('loading-mask').classList.add('hidden');
-      }
-
       liff.init({ liffId: LIFF_ID }).then(async () => {
         if (!liff.isLoggedIn()) {
           liff.login();
@@ -224,16 +213,9 @@
           currentUserName = profile.displayName;
           document.getElementById('user-info').innerText = `你好，${currentUserName}！`;
 
-          const cached = localStorage.getItem('xmas_cache_' + currentUserId);
-          if (cached) {
-            try {
-              userState = JSON.parse(cached);
-              renderUI();
-            } catch (e) {}
-          }
-
+          // ★ 唯一最高標準：先向 Google 試算表查最新狀態，更新完畫面才關閉遮罩
+          await syncProgress();
           document.getElementById('loading-mask').classList.add('hidden');
-          syncProgress();
         }
       }).catch(err => {
         alert("LIFF 連線失敗：" + err.message);
@@ -247,16 +229,33 @@
         const res = await callBackend({ action: 'getProgress', userId: currentUserId, userName: currentUserName });
         if (res) {
           userState = res;
-          localStorage.setItem('xmas_cache_' + currentUserId, JSON.stringify(res));
-          if (res.redeemed) {
-            localStorage.setItem('xmas_redeemed_locked', 'true');
-          }
           renderUI();
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error("同步失敗:", e);
+      }
     }
 
+    // 依據試算表狀態決定畫面
     function renderUI() {
+      // 1. 若試算表標記為「已核銷兌獎」
+      if (userState.redeemed) {
+        document.getElementById('task-group').classList.add('hidden');
+        document.getElementById('card-locked-hint').classList.add('hidden');
+        document.getElementById('account-finished-card').classList.remove('hidden');
+        document.getElementById('card-prize-certificate').classList.remove('hidden');
+        if (userState.prize) document.getElementById('display-prize-name').innerText = userState.prize;
+        document.getElementById('btn-staff-confirm').classList.add('hidden');
+        document.getElementById('redeemed-success-box').classList.remove('hidden');
+        document.getElementById('display-redeem-time').innerText = '核銷時間：' + (userState.redeemTime || '已發放完畢');
+        document.getElementById('account-redeemed-time').innerText = '核銷時間：' + (userState.redeemTime || '已兌換發放完畢');
+        return;
+      }
+
+      // 2. 若未核銷（含新用戶、或紀錄已被管理者刪除）：正常顯示任務卡
+      document.getElementById('task-group').classList.remove('hidden');
+      document.getElementById('account-finished-card').classList.add('hidden');
+
       let passedCount = 0;
       [1, 2, 3].forEach(i => {
         const isPassed = userState['task' + i];
@@ -275,27 +274,31 @@
 
           resDiv.className = "hidden";
           resDiv.innerText = "";
+        } else {
+          badge.className = "text-xs px-2.5 py-1 rounded-full bg-gray-200 text-gray-600 font-bold";
+          badge.innerText = "未完成";
+          
+          btn.className = "w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm transition";
+          btn.innerText = (i === 1 ? "📸 拍照驗證五指手掌" : (i === 2 ? "📸 拍照驗證剪刀手" : "📸 拍照驗證握拳"));
+          btn.disabled = false;
+
+          resDiv.className = "hidden";
+          resDiv.innerText = "";
         }
       });
 
       document.getElementById('progress-summary').innerText = `目前進度：${passedCount} / 3 關。完成 3 項任務即可出示領獎！`;
 
+      // 3. 通關憑證顯示
       if (userState.allCleared) {
         document.getElementById('card-locked-hint').classList.add('hidden');
         document.getElementById('card-prize-certificate').classList.remove('hidden');
         if (userState.prize) document.getElementById('display-prize-name').innerText = userState.prize;
-
-        if (userState.redeemed) {
-          localStorage.setItem('xmas_redeemed_locked', 'true');
-          const taskGroup = document.querySelector('.task-card-group');
-          if (taskGroup) taskGroup.style.display = 'none';
-          
-          document.getElementById('account-finished-card').classList.remove('hidden');
-          document.getElementById('account-redeemed-time').innerText = '核銷時間：' + (userState.redeemTime || '已兌換發放完畢');
-          document.getElementById('btn-staff-confirm').classList.add('hidden');
-          document.getElementById('redeemed-success-box').classList.remove('hidden');
-          document.getElementById('display-redeem-time').innerText = '核銷時間：' + (userState.redeemTime || '已發放');
-        }
+        document.getElementById('btn-staff-confirm').classList.remove('hidden');
+        document.getElementById('redeemed-success-box').classList.add('hidden');
+      } else {
+        document.getElementById('card-locked-hint').classList.remove('hidden');
+        document.getElementById('card-prize-certificate').classList.add('hidden');
       }
     }
 
@@ -303,7 +306,7 @@
       return Math.hypot(p1.x - p2.x, p1.y - p2.y);
     }
 
-    // ★ 核心算法：以骨科筆直度比率 (直線長度 / 關節折線總長) 判定伸直或彎曲
+    // 手指筆直度比率運算
     function getFingerStraightness(mcpIdx, pipIdx, dipIdx, tipIdx, landmarks) {
       const d1 = dist(landmarks[mcpIdx], landmarks[pipIdx]);
       const d2 = dist(landmarks[pipIdx], landmarks[dipIdx]);
@@ -314,20 +317,17 @@
     }
 
     function checkGestureGeometry(taskIndex, landmarks) {
-      const palmSize = dist(landmarks[0], landmarks[9]); // 手腕到中指根長度（掌心基準尺標）
+      const palmSize = dist(landmarks[0], landmarks[9]);
 
-      // 各指筆直度計算（伸直時通常 > 0.80；折曲收攏時通常 < 0.60）
       const indexStraight = getFingerStraightness(5, 6, 7, 8, landmarks);
       const middleStraight = getFingerStraightness(9, 10, 11, 12, landmarks);
       const ringStraight = getFingerStraightness(13, 14, 15, 16, landmarks);
       const pinkyStraight = getFingerStraightness(17, 18, 19, 20, landmarks);
 
-      // 姆指筆直度與外展判斷
       const dThumb23 = dist(landmarks[2], landmarks[3]);
       const dThumb34 = dist(landmarks[3], landmarks[4]);
       const thumbStraight = (dThumb23 + dThumb34 > 0) ? (dist(landmarks[2], landmarks[4]) / (dThumb23 + dThumb34)) : 0;
       
-      // 姆指張開：姆指尖離中指根與食指根需有足夠展開距離
       const thumbDistToMiddleMcp = dist(landmarks[4], landmarks[9]);
       const thumbDistToIndexMcp = dist(landmarks[4], landmarks[5]);
       const thumbOpen = (thumbStraight > 0.78) && 
@@ -339,7 +339,6 @@
       const ringOpen = ringStraight > 0.78;
       const pinkyOpen = pinkyStraight > 0.78;
 
-      // 統計實際張開的手指數量 (0~5)
       const openCount = (thumbOpen ? 1 : 0) + 
                         (indexOpen ? 1 : 0) + 
                         (middleOpen ? 1 : 0) + 
@@ -347,34 +346,18 @@
                         (pinkyOpen ? 1 : 0);
 
       if (taskIndex === 1) {
-        // 任務一：五指必須全部張開
-        if (openCount === 5) {
-          return { passed: true };
-        }
-        if (!thumbOpen && openCount === 4) {
-          return { passed: false, reason: "大拇指未張開（不可比4），請伸出五指！" };
-        }
+        if (openCount === 5) return { passed: true };
+        if (!thumbOpen && openCount === 4) return { passed: false, reason: "大拇指未張開（不可比4），請伸出五指！" };
         return { passed: false, reason: `偵測到僅伸出 ${openCount} 根手指，請張開全部五指！` };
       } 
       else if (taskIndex === 2) {
-        // 任務二：剪刀手（食指與中指伸長，無名指與小指收攏）
-        if (indexOpen && middleOpen && !ringOpen && !pinkyOpen) {
-          return { passed: true };
-        }
-        if (ringOpen || pinkyOpen) {
-          return { passed: false, reason: "無名指與小指未收緊，請比出標準剪刀手！" };
-        }
+        if (indexOpen && middleOpen && !ringOpen && !pinkyOpen) return { passed: true };
+        if (ringOpen || pinkyOpen) return { passed: false, reason: "無名指與小指未收緊，請比出標準剪刀手！" };
         return { passed: false, reason: "手勢不符，請伸出食指與中指比出 YA！" };
       } 
       else if (taskIndex === 3) {
-        // 任務三：握拳（所有手指皆不可伸直）
-        if (indexOpen || middleOpen || ringOpen || pinkyOpen) {
-          return { passed: false, reason: "偵測到有手指伸出（嚴禁伸指），請緊握拳頭！" };
-        }
-        // 四指皆須蜷曲（筆直度小於 0.68）
-        if (indexStraight < 0.68 && middleStraight < 0.68 && ringStraight < 0.68 && pinkyStraight < 0.68) {
-          return { passed: true };
-        }
+        if (indexOpen || middleOpen || ringOpen || pinkyOpen) return { passed: false, reason: "偵測到有手指伸出（嚴禁伸指），請緊握拳頭！" };
+        if (indexStraight < 0.68 && middleStraight < 0.68 && ringStraight < 0.68 && pinkyStraight < 0.68) return { passed: true };
         return { passed: false, reason: "請將手指完全收折握緊成拳頭！" };
       }
       return { passed: false, reason: "手勢不符，請重新比對拍攝" };
@@ -435,7 +418,6 @@
             if (verdict.passed) {
               userState['task' + taskIndex] = true;
               userState.allCleared = userState.task1 && userState.task2 && userState.task3;
-              localStorage.setItem('xmas_cache_' + currentUserId, JSON.stringify(userState));
               renderUI();
 
               callBackend({ action: 'recordSuccess', userId: currentUserId, taskIndex: taskIndex }).then(res => {
@@ -468,13 +450,7 @@
 
       callBackend({ action: 'redeem', userId: currentUserId }).then(res => {
         if (res.success) {
-          userState.redeemed = true;
-          userState.prize = res.prize;
-          userState.redeemTime = res.time;
-          localStorage.setItem('xmas_cache_' + currentUserId, JSON.stringify(userState));
-          localStorage.setItem('xmas_redeemed_locked', 'true');
           alert(`✅ 核銷成功！\n已發放：${res.prize}\n時間：${res.time}\n\n此帳號活動已正式完成。`);
-          renderUI();
           syncProgress();
         } else {
           alert(res.message);
