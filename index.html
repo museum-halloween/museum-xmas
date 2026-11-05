@@ -299,62 +299,72 @@
       }
     }
 
-    // 支援 3D 空間距離（Z軸抗透視縮短）
     function dist(p1, p2) {
-      const dz = (p1.z - p2.z) || 0;
-      return Math.hypot(p1.x - p2.x, p1.y - p2.y, dz);
+      return Math.hypot(p1.x - p2.x, p1.y - p2.y);
     }
 
-    // ★ 徹底封殺中指漏洞的指關節幾何算法
     function checkGestureGeometry(taskIndex, landmarks) {
-      // 測量指尖(Tip)到掌根(MCP)的距離 vs 第二關節(PIP)到掌根(MCP)的距離
-      const isStraight = (tipIdx, pipIdx, mcpIdx) => {
-        const dTip = dist(landmarks[tipIdx], landmarks[mcpIdx]);
-        const dPip = dist(landmarks[pipIdx], landmarks[mcpIdx]);
-        return dTip > dPip * 1.35;
+      const wrist = landmarks[0];
+
+      // 檢查食、中、無名、小指是否伸直
+      const isExtended = (tipIdx, pipIdx, mcpIdx) => {
+        const dTipWrist = dist(landmarks[tipIdx], wrist);
+        const dPipWrist = dist(landmarks[pipIdx], wrist);
+        const dTipMcp = dist(landmarks[tipIdx], landmarks[mcpIdx]);
+        const dPipMcp = dist(landmarks[pipIdx], landmarks[mcpIdx]);
+        return dTipWrist > dPipWrist * 1.12 && dTipMcp > dPipMcp * 1.2;
       };
 
-      const isCurled = (tipIdx, pipIdx, mcpIdx) => {
-        const dTip = dist(landmarks[tipIdx], landmarks[mcpIdx]);
-        const dPip = dist(landmarks[pipIdx], landmarks[mcpIdx]);
-        return dTip < dPip * 1.15;
+      // 檢查手指是否收折蜷縮（握拳）
+      const isCurled = (tipIdx, pipIdx) => {
+        return dist(landmarks[tipIdx], wrist) <= dist(landmarks[pipIdx], wrist) * 1.05;
       };
 
-      const indexStraight = isStraight(8, 6, 5);      // 食指
-      const middleStraight = isStraight(12, 10, 9);    // 中指（關鍵角色）
-      const ringStraight = isStraight(16, 14, 13);     // 無名指
-      const pinkyStraight = isStraight(20, 18, 17);    // 小指
+      const indexOpen = isExtended(8, 6, 5);      // 食指伸直
+      const middleOpen = isExtended(12, 10, 9);    // 中指伸直
+      const ringOpen = isExtended(16, 14, 13);     // 無名指伸直
+      const pinkyOpen = isExtended(20, 18, 17);    // 小指伸直
 
-      const indexCurled = isCurled(8, 6, 5);
-      const middleCurled = isCurled(12, 10, 9);
-      const ringCurled = isCurled(16, 14, 13);
-      const pinkyCurled = isCurled(20, 18, 17);
+      const indexClosed = isCurled(8, 6);
+      const middleClosed = isCurled(12, 10);
+      const ringClosed = isCurled(16, 14);
+      const pinkyClosed = isCurled(20, 18);
+
+      // ★ 大拇指嚴格檢驗（封殺比「4」的漏洞）
+      // 大拇指張開時，拇指尖(4)必須向外展開，遠離中指指根(9)與食指指根(5)
+      // 若拇指折進掌心比 4，拇指尖會靠在中指指根附近，dThumbMiddle 會大幅縮小
+      const dThumbMiddle = dist(landmarks[4], landmarks[9]);
+      const dThumbBaseMiddle = dist(landmarks[2], landmarks[9]);
+      const dThumbIndex = dist(landmarks[4], landmarks[5]);
+      const dThumbJointIndex = dist(landmarks[3], landmarks[5]);
+      const thumbOpen = (dThumbMiddle > dThumbBaseMiddle * 1.15) && (dThumbIndex > dThumbJointIndex * 1.1);
 
       if (taskIndex === 1) {
-        // 任務一：五指張開（四指皆伸展）
-        if (indexStraight && middleStraight && ringStraight && pinkyStraight) {
+        // 任務一：五指張開（五根手指必須全部伸展）
+        if (thumbOpen && indexOpen && middleOpen && ringOpen && pinkyOpen) {
           return { passed: true };
+        }
+        if (!thumbOpen && indexOpen && middleOpen && ringOpen && pinkyOpen) {
+          return { passed: false, reason: "大拇指未張開（不可比4），請伸出五指！" };
         }
         return { passed: false, reason: "請將五根手指完全伸直張開拍照！" };
       } 
       else if (taskIndex === 2) {
-        // 任務二：剪刀手（食指與中指伸直，無名指與小指收攏）
-        if (indexStraight && middleStraight && !ringStraight && !pinkyStraight) {
+        // 任務二：剪刀手（食指與中指伸長，無名指與小指收攏）
+        if (indexOpen && middleOpen && ringClosed && pinkyClosed) {
           return { passed: true };
         }
         return { passed: false, reason: "手勢不符，請比出剪刀手(YA)！" };
       } 
       else if (taskIndex === 3) {
-        // ★ 任務三：握拳（嚴格雙重封鎖）
-        // 防線 1：只要中指（或任何一指）伸出，立即退件！
-        if (middleStraight || indexStraight || ringStraight || pinkyStraight) {
+        // 任務三：握拳
+        if (indexOpen || middleOpen || ringOpen || pinkyOpen) {
           return { passed: false, reason: "偵測到有手指伸出，請緊握拳頭！" };
         }
-        // 防線 2：四指指尖必須全部確實折回掌心
-        if (indexCurled && middleCurled && ringCurled && pinkyCurled) {
+        if (indexClosed && middleClosed && ringClosed && pinkyClosed) {
           return { passed: true };
         }
-        return { passed: false, reason: "請完全握緊拳頭，手指收攏折進掌心！" };
+        return { passed: false, reason: "請將手指完全握緊成拳頭！" };
       }
       return { passed: false, reason: "手勢不符，請重新比對拍攝" };
     }
