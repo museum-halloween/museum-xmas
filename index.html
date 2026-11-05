@@ -40,11 +40,15 @@
       <div class="flex items-center justify-between mb-2">
         <h2 class="font-bold text-base flex items-center gap-2">
           <span class="w-6 h-6 rounded-full bg-red-600 text-white text-xs flex items-center justify-center font-black">1</span>
-          任務一：張開五指的手掌
+          任務一：張開五指的手影
         </h2>
         <span id="badge-1" class="text-xs px-2.5 py-1 rounded-full bg-gray-200 text-gray-600 font-bold">未完成</span>
       </div>
-      <p class="text-xs text-gray-500 mb-2">請伸出<b>五指完全張開</b>的手掌拍照！</p>
+      <div class="relative rounded-xl overflow-hidden bg-gray-100 aspect-video mb-2 flex items-center justify-center border">
+        <img src="demo1.jpg" alt="官方示範照 1" class="w-full h-full object-cover">
+        <span class="absolute bottom-1 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded">示範手勢</span>
+      </div>
+      <p class="text-xs text-gray-500 mb-2">請伸出<b>五指完全張開</b>的手掌或手影拍照！</p>
       <input type="file" id="file-1" accept="image/*" capture="environment" class="hidden" onchange="handlePhotoUpload(1, event)">
       <button id="btn-1" onclick="document.getElementById('file-1').click()" class="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm transition">
         📸 拍照驗證五指手掌
@@ -60,6 +64,10 @@
           任務二：剪刀手（YA）
         </h2>
         <span id="badge-2" class="text-xs px-2.5 py-1 rounded-full bg-gray-200 text-gray-600 font-bold">未完成</span>
+      </div>
+      <div class="relative rounded-xl overflow-hidden bg-gray-100 aspect-video mb-2 flex items-center justify-center border">
+        <img src="demo2.jpg" alt="官方示範照 2" class="w-full h-full object-cover">
+        <span class="absolute bottom-1 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded">示範手勢</span>
       </div>
       <p class="text-xs text-gray-500 mb-2">請比出<b>剪刀手（食指與中指 V 字）</b>拍照！</p>
       <input type="file" id="file-2" accept="image/*" capture="environment" class="hidden" onchange="handlePhotoUpload(2, event)">
@@ -77,6 +85,10 @@
           任務三：握拳（石頭）
         </h2>
         <span id="badge-3" class="text-xs px-2.5 py-1 rounded-full bg-gray-200 text-gray-600 font-bold">未完成</span>
+      </div>
+      <div class="relative rounded-xl overflow-hidden bg-gray-100 aspect-video mb-2 flex items-center justify-center border">
+        <img src="demo3.jpg" alt="官方示範照 3" class="w-full h-full object-cover">
+        <span class="absolute bottom-1 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded">示範手勢</span>
       </div>
       <p class="text-xs text-gray-500 mb-2">請將手指收攏，比出<b>緊閉的拳頭</b>拍照！</p>
       <input type="file" id="file-3" accept="image/*" capture="environment" class="hidden" onchange="handlePhotoUpload(3, event)">
@@ -210,10 +222,10 @@
 
       const btn = document.getElementById('btn-' + taskIndex);
       const resDiv = document.getElementById('result-' + taskIndex);
-      btn.innerText = "AI 正在比對手勢中...";
+      btn.innerText = "AI 正在嚴格審核手勢中...";
       btn.disabled = true;
       resDiv.className = "text-xs mt-2 font-medium text-amber-600 block";
-      resDiv.innerText = "正在比對手勢與角度...";
+      resDiv.innerText = "正在比對手勢動作與手指特徵...";
 
       const reader = new FileReader();
       reader.onload = function(e) {
@@ -222,7 +234,7 @@
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
-          const maxDim = 700;
+          const maxDim = 600;
 
           if (width > maxDim || height > maxDim) {
             if (width > height) {
@@ -246,7 +258,7 @@
             taskIndex: taskIndex,
             base64Image: compressedDataUrl
           }).then(result => {
-            if (result.passed) {
+            if (result.passed === true) {
               userState['task' + taskIndex] = true;
               userState.allCleared = userState.task1 && userState.task2 && userState.task3;
               resDiv.className = "text-xs mt-2 font-medium text-emerald-600 block";
@@ -255,13 +267,13 @@
               syncProgress();
             } else {
               resDiv.className = "text-xs mt-2 font-medium text-red-600 block";
-              resDiv.innerText = "❌ " + (result.reason || "手勢不符，請依任務要求重新拍攝");
+              resDiv.innerText = "❌ " + (result.reason || "手勢不符，請重新比對拍攝");
               btn.innerText = "📸 重新拍攝驗證";
               btn.disabled = false;
             }
           }).catch(err => {
             resDiv.className = "text-xs mt-2 font-medium text-red-600 block";
-            resDiv.innerText = "連線稍慢，請重試一次";
+            resDiv.innerText = "連線稍微延遲，請點擊按鈕再試一次";
             btn.innerText = "📸 重新拍攝驗證";
             btn.disabled = false;
           });
