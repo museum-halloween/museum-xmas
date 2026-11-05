@@ -30,7 +30,7 @@
       2026 聖誕限定活動
     </div>
     <h1 class="text-2xl font-black tracking-wide text-amber-300">幻覺博物館｜聖誕尋影任務</h1>
-    <p class="text-xs text-emerald-100 mt-1">在聖誕樹前比出指定手勢拍照通關！</p>
+    <p class="text-xs text-emerald-100 mt-1">模仿指定手勢，拍照驗證通關！</p>
     <div id="user-info" class="mt-2 text-xs font-bold text-amber-200">連線中...</div>
   </header>
 
@@ -40,14 +40,14 @@
       <div class="flex items-center justify-between mb-2">
         <h2 class="font-bold text-base flex items-center gap-2">
           <span class="w-6 h-6 rounded-full bg-red-600 text-white text-xs flex items-center justify-center font-black">1</span>
-          任務一：聖誕樹前比出「1」
+          任務一：張開五指的手掌
         </h2>
         <span id="badge-1" class="text-xs px-2.5 py-1 rounded-full bg-gray-200 text-gray-600 font-bold">未完成</span>
       </div>
-      <p class="text-xs text-gray-500 mb-2">請對準聖誕樹，單手在鏡頭前伸出<b>食指比 1</b> 拍照！</p>
+      <p class="text-xs text-gray-500 mb-2">請伸出<b>五指完全張開</b>的手掌拍照！</p>
       <input type="file" id="file-1" accept="image/*" capture="environment" class="hidden" onchange="handlePhotoUpload(1, event)">
       <button id="btn-1" onclick="document.getElementById('file-1').click()" class="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm transition">
-        📸 拍照驗證任務一
+        📸 拍照驗證五指手掌
       </button>
       <div id="result-1" class="text-xs mt-2 font-medium hidden"></div>
     </div>
@@ -57,14 +57,14 @@
       <div class="flex items-center justify-between mb-2">
         <h2 class="font-bold text-base flex items-center gap-2">
           <span class="w-6 h-6 rounded-full bg-red-600 text-white text-xs flex items-center justify-center font-black">2</span>
-          任務二：聖誕樹前比出「2」
+          任務二：剪刀手（YA）
         </h2>
         <span id="badge-2" class="text-xs px-2.5 py-1 rounded-full bg-gray-200 text-gray-600 font-bold">未完成</span>
       </div>
-      <p class="text-xs text-gray-500 mb-2">請對準聖誕樹，單手在鏡頭前比出<b>剪刀手 YA</b> 拍照！</p>
+      <p class="text-xs text-gray-500 mb-2">請比出<b>剪刀手（食指與中指 V 字）</b>拍照！</p>
       <input type="file" id="file-2" accept="image/*" capture="environment" class="hidden" onchange="handlePhotoUpload(2, event)">
       <button id="btn-2" onclick="document.getElementById('file-2').click()" class="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm transition">
-        📸 拍照驗證任務二
+        📸 拍照驗證剪刀手
       </button>
       <div id="result-2" class="text-xs mt-2 font-medium hidden"></div>
     </div>
@@ -74,19 +74,19 @@
       <div class="flex items-center justify-between mb-2">
         <h2 class="font-bold text-base flex items-center gap-2">
           <span class="w-6 h-6 rounded-full bg-red-600 text-white text-xs flex items-center justify-center font-black">3</span>
-          任務三：聖誕樹前比出「3」
+          任務三：握拳（石頭）
         </h2>
         <span id="badge-3" class="text-xs px-2.5 py-1 rounded-full bg-gray-200 text-gray-600 font-bold">未完成</span>
       </div>
-      <p class="text-xs text-gray-500 mb-2">請對準聖誕樹，單手在鏡頭前伸出<b>三根手指</b>拍照！</p>
+      <p class="text-xs text-gray-500 mb-2">請將手指收攏，比出<b>緊閉的拳頭</b>拍照！</p>
       <input type="file" id="file-3" accept="image/*" capture="environment" class="hidden" onchange="handlePhotoUpload(3, event)">
       <button id="btn-3" onclick="document.getElementById('file-3').click()" class="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm transition">
-        📸 拍照驗證任務三
+        📸 拍照驗證握拳
       </button>
       <div id="result-3" class="text-xs mt-2 font-medium hidden"></div>
     </div>
 
-    <!-- 進度提示卡 -->
+    <!-- 未完成提示卡 -->
     <div id="card-locked-hint" class="card-glass rounded-2xl p-4 text-center border border-white/30">
       <div class="text-emerald-800 font-bold text-sm">🔒 聖誕好禮兌換尚未解鎖</div>
       <p id="progress-summary" class="text-xs text-gray-600 mt-1">目前進度：0 / 3 關。完成 3 項任務即可出示領獎！</p>
@@ -97,7 +97,7 @@
       <div class="inline-block bg-red-600 text-white text-[11px] px-3 py-1 rounded-full font-black tracking-wider uppercase mb-2">
         ★ 通關兌獎憑證 ★
       </div>
-      <h3 class="text-gray-800 font-black text-lg">恭喜完成 3 大聖誕任務！</h3>
+      <h3 class="text-gray-800 font-black text-lg">恭喜完成 3 大聖誕手勢任務！</h3>
       <p class="text-xs text-gray-500 mt-0.5">請向出口工作人員出示此畫面直接領獎</p>
 
       <div class="my-4 py-4 px-3 bg-red-50 border-2 border-dashed border-red-400 rounded-xl">
@@ -210,10 +210,10 @@
 
       const btn = document.getElementById('btn-' + taskIndex);
       const resDiv = document.getElementById('result-' + taskIndex);
-      btn.innerText = "AI 正在比對中...";
+      btn.innerText = "AI 正在比對手勢中...";
       btn.disabled = true;
       resDiv.className = "text-xs mt-2 font-medium text-amber-600 block";
-      resDiv.innerText = "正在辨識手勢與聖誕樹...";
+      resDiv.innerText = "正在比對手勢與角度...";
 
       const reader = new FileReader();
       reader.onload = function(e) {
@@ -222,7 +222,6 @@
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
-          // ★ 最佳尺寸 700px，輕量且辨識精準
           const maxDim = 700;
 
           if (width > maxDim || height > maxDim) {
@@ -251,12 +250,12 @@
               userState['task' + taskIndex] = true;
               userState.allCleared = userState.task1 && userState.task2 && userState.task3;
               resDiv.className = "text-xs mt-2 font-medium text-emerald-600 block";
-              resDiv.innerText = "🎉 驗證通過！手勢與背景完全吻合！";
+              resDiv.innerText = "🎉 驗證通過！手勢完全吻合！";
               renderUI();
               syncProgress();
             } else {
               resDiv.className = "text-xs mt-2 font-medium text-red-600 block";
-              resDiv.innerText = "❌ " + (result.reason || "請對準聖誕樹比出正確手勢");
+              resDiv.innerText = "❌ " + (result.reason || "手勢不符，請依任務要求重新拍攝");
               btn.innerText = "📸 重新拍攝驗證";
               btn.disabled = false;
             }
